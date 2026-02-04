@@ -1,0 +1,83 @@
+{
+  "version": "1.0.0",
+  "registry": "ghcr.io/proxifai/agent-images",
+  "images": [
+    {
+      "name": "base",
+      "tag": "latest",
+      "fullName": "ghcr.io/proxifai/agent-images/base:latest",
+      "description": "Minimal Alpine base with SSH support",
+      "size": "~15MB",
+      "baseTool": null,
+      "features": ["ssh", "bash", "curl", "git"],
+      "ports": [22],
+      "recommended": false
+    },
+    {
+      "name": "claude-code",
+      "tag": "latest",
+      "fullName": "ghcr.io/proxifai/agent-images/claude-code:latest",
+      "description": "Node.js environment for Claude Code CLI",
+      "size": "~80MB",
+      "baseTool": "claude-code",
+      "features": ["ssh", "bash", "curl", "git", "nodejs", "npm"],
+      "ports": [22],
+      "recommended": true
+    },
+    {
+      "name": "cursor",
+      "tag": "latest",
+      "fullName": "ghcr.io/proxifai/agent-images/cursor:latest",
+      "description": "Full development environment for Cursor-style coding",
+      "size": "~200MB",
+      "baseTool": "cursor",
+      "features": ["ssh", "bash", "curl", "git", "nodejs", "npm", "python3", "gcc"],
+      "ports": [22],
+      "recommended": true
+    },
+    {
+      "name": "opencode",
+      "tag": "latest",
+      "fullName": "ghcr.io/proxifai/agent-images/opencode:latest",
+      "description": "Go environment with web terminal support",
+      "size": "~300MB",
+      "baseTool": "opencode",
+      "features": ["ssh", "bash", "curl", "git", "go", "ttyd"],
+      "ports": [22, 3000],
+      "recommended": true
+    },
+    {
+      "name": "gemini-cli",
+      "tag": "latest",
+      "fullName": "ghcr.io/proxifai/agent-images/gemini-cli:latest",
+      "description": "Node.js environment for Google Gemini CLI",
+      "size": "~80MB",
+      "baseTool": "gemini-cli",
+      "features": ["ssh", "bash", "curl", "git", "nodejs", "npm"],
+      "ports": [22],
+      "recommended": false
+    },
+    {
+      "name": "copilot",
+      "tag": "latest",
+      "fullName": "ghcr.io/proxifai/agent-images/copilot:latest",
+      "description": "Node.js with GitHub CLI for Copilot integration",
+      "size": "~100MB",
+      "baseTool": "copilot",
+      "features": ["ssh", "bash", "curl", "git", "nodejs", "npm", "gh"],
+      "ports": [22],
+      "recommended": false
+    },
+    {
+      "name": "aider",
+      "tag": "latest",
+      "fullName": "ghcr.io/proxifai/agent-images/aider:latest",
+      "description": "Python environment for Aider AI pair programming",
+      "size": "~120MB",
+      "baseTool": "aider",
+      "features": ["ssh", "bash", "curl", "git", "python3", "pip"],
+      "ports": [22],
+      "recommended": true
+    }
+  ]
+}
