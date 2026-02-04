@@ -6,6 +6,7 @@ FROM alpine:3.19
 LABEL org.opencontainers.image.title="ProxifAI Base"
 LABEL org.opencontainers.image.description="Minimal base image for ProxifAI agents with SSH support"
 LABEL org.opencontainers.image.vendor="ProxifAI"
+LABEL org.opencontainers.image.source="https://github.com/proxyfai/agent-images"
 LABEL ai.proxifai.image.type="base"
 LABEL ai.proxifai.image.version="1.0.0"
 
