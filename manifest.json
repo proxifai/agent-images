@@ -1,11 +1,11 @@
 {
   "version": "1.0.0",
-  "registry": "ghcr.io/henrydays/agent-images",
+  "registry": "ghcr.io/proxyfai/agent-images",
   "images": [
     {
       "name": "base",
       "tag": "latest",
-      "fullName": "ghcr.io/henrydays/agent-images/base:latest",
+      "fullName": "ghcr.io/proxyfai/agent-images/base:latest",
       "description": "Minimal Alpine base with SSH support",
       "size": "~15MB",
       "baseTool": null,
@@ -16,7 +16,7 @@
     {
       "name": "claude-code",
       "tag": "latest",
-      "fullName": "ghcr.io/henrydays/agent-images/claude-code:latest",
+      "fullName": "ghcr.io/proxyfai/agent-images/claude-code:latest",
       "description": "Node.js environment for Claude Code CLI",
       "size": "~80MB",
       "baseTool": "claude-code",
@@ -27,7 +27,7 @@
     {
       "name": "cursor",
       "tag": "latest",
-      "fullName": "ghcr.io/henrydays/agent-images/cursor:latest",
+      "fullName": "ghcr.io/proxyfai/agent-images/cursor:latest",
       "description": "Full development environment for Cursor-style coding",
       "size": "~200MB",
       "baseTool": "cursor",
@@ -38,7 +38,7 @@
     {
       "name": "opencode",
       "tag": "latest",
-      "fullName": "ghcr.io/henrydays/agent-images/opencode:latest",
+      "fullName": "ghcr.io/proxyfai/agent-images/opencode:latest",
       "description": "Go environment with web terminal support",
       "size": "~300MB",
       "baseTool": "opencode",
@@ -49,7 +49,7 @@
     {
       "name": "gemini-cli",
       "tag": "latest",
-      "fullName": "ghcr.io/henrydays/agent-images/gemini-cli:latest",
+      "fullName": "ghcr.io/proxyfai/agent-images/gemini-cli:latest",
       "description": "Node.js environment for Google Gemini CLI",
       "size": "~80MB",
       "baseTool": "gemini-cli",
@@ -60,7 +60,7 @@
     {
       "name": "copilot",
       "tag": "latest",
-      "fullName": "ghcr.io/henrydays/agent-images/copilot:latest",
+      "fullName": "ghcr.io/proxyfai/agent-images/copilot:latest",
       "description": "Node.js with GitHub CLI for Copilot integration",
       "size": "~100MB",
       "baseTool": "copilot",
@@ -71,7 +71,7 @@
     {
       "name": "aider",
       "tag": "latest",
-      "fullName": "ghcr.io/henrydays/agent-images/aider:latest",
+      "fullName": "ghcr.io/proxyfai/agent-images/aider:latest",
       "description": "Python environment for Aider AI pair programming",
       "size": "~120MB",
       "baseTool": "aider",

@@ -1,7 +1,7 @@
 # ProxifAI Cursor Image
 # Based on minimal base with development tools for Cursor agent
 
-FROM ghcr.io/henrydays/agent-images/base:latest
+FROM ghcr.io/proxyfai/agent-images/base:latest
 
 LABEL org.opencontainers.image.title="ProxifAI Cursor"
 LABEL org.opencontainers.image.description="Alpine-based image for Cursor-style AI coding agent"

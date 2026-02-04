@@ -1,7 +1,7 @@
 # ProxifAI OpenCode Image
 # Based on minimal base with Go and web terminal support
 
-FROM ghcr.io/henrydays/agent-images/base:latest
+FROM ghcr.io/proxyfai/agent-images/base:latest
 
 LABEL org.opencontainers.image.title="ProxifAI OpenCode"
 LABEL org.opencontainers.image.description="Alpine-based image for OpenCode agent with web terminal"

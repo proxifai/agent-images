@@ -1,7 +1,7 @@
 # ProxifAI Copilot Image
 # Based on minimal base with development tools for GitHub Copilot CLI
 
-FROM ghcr.io/henrydays/agent-images/base:latest
+FROM ghcr.io/proxyfai/agent-images/base:latest
 
 LABEL org.opencontainers.image.title="ProxifAI Copilot"
 LABEL org.opencontainers.image.description="Alpine-based image for GitHub Copilot CLI agent"

@@ -1,7 +1,7 @@
 # ProxifAI Claude Code Image
 # Based on minimal base with Node.js for Claude Code CLI
 
-FROM ghcr.io/henrydays/agent-images/base:latest
+FROM ghcr.io/proxyfai/agent-images/base:latest
 
 LABEL org.opencontainers.image.title="ProxifAI Claude Code"
 LABEL org.opencontainers.image.description="Alpine-based image with Node.js for Claude Code agent"

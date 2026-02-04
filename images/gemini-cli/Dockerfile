@@ -1,7 +1,7 @@
 # ProxifAI Gemini CLI Image
 # Based on minimal base with Node.js for Gemini CLI
 
-FROM ghcr.io/henrydays/agent-images/base:latest
+FROM ghcr.io/proxyfai/agent-images/base:latest
 
 LABEL org.opencontainers.image.title="ProxifAI Gemini CLI"
 LABEL org.opencontainers.image.description="Alpine-based image for Google Gemini CLI agent"
