@@ -165,3 +165,5 @@ jobs:
 
       - name: Run test suite
         run: bash tests/test.sh
+        env:
+          REGISTRY: proxifai
