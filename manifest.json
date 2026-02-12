@@ -1,83 +1,168 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "registry": "ghcr.io/proxifai/agent-images",
-  "images": [
-    {
-      "name": "base",
-      "tag": "latest",
-      "fullName": "ghcr.io/proxifai/agent-images/base:latest",
-      "description": "Minimal Alpine base with SSH support",
-      "size": "~15MB",
-      "baseTool": null,
-      "features": ["ssh", "bash", "curl", "git"],
-      "ports": [22],
-      "recommended": false
-    },
-    {
-      "name": "claude-code",
-      "tag": "latest",
-      "fullName": "ghcr.io/proxifai/agent-images/claude-code:latest",
-      "description": "Node.js environment for Claude Code CLI",
-      "size": "~80MB",
-      "baseTool": "claude-code",
-      "features": ["ssh", "bash", "curl", "git", "nodejs", "npm"],
-      "ports": [22],
-      "recommended": true
-    },
-    {
-      "name": "cursor",
-      "tag": "latest",
-      "fullName": "ghcr.io/proxifai/agent-images/cursor:latest",
-      "description": "Full development environment for Cursor-style coding",
-      "size": "~200MB",
-      "baseTool": "cursor",
-      "features": ["ssh", "bash", "curl", "git", "nodejs", "npm", "python3", "gcc"],
-      "ports": [22],
-      "recommended": true
-    },
-    {
-      "name": "opencode",
-      "tag": "latest",
-      "fullName": "ghcr.io/proxifai/agent-images/opencode:latest",
-      "description": "Go environment with web terminal support",
-      "size": "~300MB",
-      "baseTool": "opencode",
-      "features": ["ssh", "bash", "curl", "git", "go", "ttyd"],
-      "ports": [22, 3000],
-      "recommended": true
-    },
-    {
-      "name": "gemini-cli",
-      "tag": "latest",
-      "fullName": "ghcr.io/proxifai/agent-images/gemini-cli:latest",
-      "description": "Node.js environment for Google Gemini CLI",
-      "size": "~80MB",
-      "baseTool": "gemini-cli",
-      "features": ["ssh", "bash", "curl", "git", "nodejs", "npm"],
-      "ports": [22],
-      "recommended": false
-    },
-    {
-      "name": "copilot",
-      "tag": "latest",
-      "fullName": "ghcr.io/proxifai/agent-images/copilot:latest",
-      "description": "Node.js with GitHub CLI for Copilot integration",
-      "size": "~100MB",
-      "baseTool": "copilot",
-      "features": ["ssh", "bash", "curl", "git", "nodejs", "npm", "gh"],
-      "ports": [22],
-      "recommended": false
-    },
-    {
-      "name": "aider",
-      "tag": "latest",
-      "fullName": "ghcr.io/proxifai/agent-images/aider:latest",
-      "description": "Python environment for Aider AI pair programming",
-      "size": "~120MB",
-      "baseTool": "aider",
-      "features": ["ssh", "bash", "curl", "git", "python3", "pip"],
-      "ports": [22],
-      "recommended": true
-    }
-  ]
+  "architecture": {
+    "layer1": "base - Core developer tools (editors, search, git, shell)",
+    "layer2": "dev-* - Language-specific development environments",
+    "layer3": "agents - Thin wrappers adding AI agent CLIs"
+  },
+  "images": {
+    "layer1_base": [
+      {
+        "name": "base",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/base:latest",
+        "description": "Developer foundation with editors, search, git, shell tools",
+        "size": "~45MB",
+        "layer": 1,
+        "dependsOn": null,
+        "features": [
+          "bash", "zsh",
+          "openssh-server", "openssh-client",
+          "neovim", "nano",
+          "git", "git-lfs",
+          "ripgrep", "fd",
+          "tmux", "less", "htop", "tree",
+          "curl", "wget", "ca-certificates",
+          "jq", "yq",
+          "tar", "gzip", "unzip", "xz",
+          "make",
+          "strace", "lsof",
+          "pfai"
+        ],
+        "ports": [22]
+      }
+    ],
+    "layer2_dev_environments": [
+      {
+        "name": "dev-node",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/dev-node:latest",
+        "description": "Node.js development environment with npm, pnpm, yarn, TypeScript",
+        "size": "~150MB",
+        "layer": 2,
+        "dependsOn": "base",
+        "features": ["nodejs", "npm", "pnpm", "yarn", "typescript", "ts-node", "python3", "gcc", "g++"],
+        "ports": [22]
+      },
+      {
+        "name": "dev-python",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/dev-python:latest",
+        "description": "Python development environment with pip, pipx, virtualenv, poetry",
+        "size": "~130MB",
+        "layer": 2,
+        "dependsOn": "base",
+        "features": ["python3", "pip", "pipx", "virtualenv", "poetry", "gcc", "g++"],
+        "ports": [22]
+      },
+      {
+        "name": "dev-go",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/dev-go:latest",
+        "description": "Go development environment with linting and debugging tools",
+        "size": "~400MB",
+        "layer": 2,
+        "dependsOn": "base",
+        "features": ["go", "golangci-lint", "dlv", "gopls", "gcc", "g++"],
+        "ports": [22]
+      },
+      {
+        "name": "dev-rust",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/dev-rust:latest",
+        "description": "Rust development environment with cargo, rustfmt, clippy, rust-analyzer",
+        "size": "~450MB",
+        "layer": 2,
+        "dependsOn": "base",
+        "features": ["rustc", "cargo", "rustfmt", "clippy", "rust-analyzer", "gcc", "g++"],
+        "ports": [22]
+      },
+      {
+        "name": "dev-fullstack",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/dev-fullstack:latest",
+        "description": "Multi-language environment with Node.js, Python, Docker CLI",
+        "size": "~200MB",
+        "layer": 2,
+        "dependsOn": "base",
+        "features": ["nodejs", "npm", "pnpm", "yarn", "typescript", "python3", "pip", "pipx", "docker-cli", "gcc", "g++"],
+        "ports": [22]
+      }
+    ],
+    "layer3_agents": [
+      {
+        "name": "claude-code",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/claude-code:latest",
+        "description": "Claude Code CLI agent on Node.js development environment",
+        "size": "~200MB",
+        "layer": 3,
+        "dependsOn": "dev-node",
+        "baseTool": "claude-code",
+        "ports": [22],
+        "recommended": true
+      },
+      {
+        "name": "gemini-cli",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/gemini-cli:latest",
+        "description": "Google Gemini CLI agent on Node.js development environment",
+        "size": "~180MB",
+        "layer": 3,
+        "dependsOn": "dev-node",
+        "baseTool": "gemini-cli",
+        "ports": [22],
+        "recommended": false
+      },
+      {
+        "name": "copilot",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/copilot:latest",
+        "description": "GitHub Copilot CLI agent on Node.js development environment",
+        "size": "~170MB",
+        "layer": 3,
+        "dependsOn": "dev-node",
+        "baseTool": "copilot",
+        "ports": [22],
+        "recommended": false
+      },
+      {
+        "name": "aider",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/aider:latest",
+        "description": "Aider AI pair programming agent on Python development environment",
+        "size": "~200MB",
+        "layer": 3,
+        "dependsOn": "dev-python",
+        "baseTool": "aider",
+        "ports": [22],
+        "recommended": true
+      },
+      {
+        "name": "cursor",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/cursor:latest",
+        "description": "Cursor-style AI coding agent on fullstack development environment",
+        "size": "~210MB",
+        "layer": 3,
+        "dependsOn": "dev-fullstack",
+        "baseTool": "cursor",
+        "ports": [22],
+        "recommended": true
+      },
+      {
+        "name": "opencode",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/opencode:latest",
+        "description": "OpenCode agent on Go development environment with web terminal",
+        "size": "~420MB",
+        "layer": 3,
+        "dependsOn": "dev-go",
+        "baseTool": "opencode",
+        "ports": [22, 3000],
+        "recommended": true
+      }
+    ]
+  }
 }
