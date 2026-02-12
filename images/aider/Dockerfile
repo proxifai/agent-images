@@ -1,11 +1,11 @@
 # ProxifAI Aider Image
 # Based on minimal base with Python for Aider AI coding assistant
 
-FROM ghcr.io/proxyfai/agent-images/base:latest
+FROM ghcr.io/proxifai/agent-images/base:latest
 
 LABEL org.opencontainers.image.title="ProxifAI Aider"
 LABEL org.opencontainers.image.description="Alpine-based image for Aider AI pair programming agent"
-LABEL org.opencontainers.image.source="https://github.com/proxyfai/agent-images"
+LABEL org.opencontainers.image.source="https://github.com/proxifai/agent-images"
 LABEL ai.proxifai.image.type="aider"
 LABEL ai.proxifai.image.version="1.0.0"
 LABEL ai.proxifai.base-tool="aider"
