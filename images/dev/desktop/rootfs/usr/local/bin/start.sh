@@ -7,6 +7,12 @@ VNC_PORT="${VNC_PORT:-5900}"
 USER_NAME="user"
 USER_HOME="/home/${USER_NAME}"
 
+# Mask CPU model to hide infrastructure details
+if [ -f /proc/cpuinfo ]; then
+    sed 's/model name.*/model name\t: Virtual CPU/' /proc/cpuinfo > /tmp/.cpuinfo_masked 2>/dev/null
+    mount --bind /tmp/.cpuinfo_masked /proc/cpuinfo 2>/dev/null || true
+fi
+
 echo "[desktop] Starting Xvfb on ${DISPLAY} at ${RESOLUTION}..."
 Xvfb "${DISPLAY}" -screen 0 "${RESOLUTION}" -ac +extension GLX +render -noreset &
 
