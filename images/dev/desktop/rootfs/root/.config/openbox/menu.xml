@@ -6,7 +6,7 @@
     </item>
     <separator />
     <item label="Workspace">
-      <action name="Execute"><command>xterm -fa 'DejaVu Sans Mono' -fs 12 -bg '#1e1e2e' -fg '#cdd6f4' -e 'cd /workspace && bash'</command></action>
+      <action name="Execute"><command>xterm -fa 'DejaVu Sans Mono' -fs 12 -bg '#1e1e2e' -fg '#cdd6f4' -e 'cd /workspace &amp;&amp; bash'</command></action>
     </item>
   </menu>
 </openbox_menu>
