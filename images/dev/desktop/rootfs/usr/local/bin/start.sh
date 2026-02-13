@@ -31,6 +31,9 @@ openbox --sm-disable &
 echo "[desktop] Starting x11vnc on port ${VNC_PORT}..."
 x11vnc -display "${DISPLAY}" -forever -shared -rfbport "${VNC_PORT}" -nopw -noxdamage -xkb &
 
+# Launch an initial xterm so users see something on connect
+xterm -geometry 120x35+100+100 -fa 'DejaVu Sans Mono' -fs 11 &
+
 echo "[desktop] Desktop ready - VNC on port ${VNC_PORT}"
 
 # Run sshd as PID 1 for container lifecycle
