@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Display server & VNC
     xvfb \
     x11vnc \
+    x11-utils \
     dbus-x11 \
     # Browser
     firefox \
