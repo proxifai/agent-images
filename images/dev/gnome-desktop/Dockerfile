@@ -97,8 +97,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Create non-root user with sudo access
-RUN useradd -m -s /bin/bash -u 1000 user \
+# Create non-root user with sudo access (remove default ubuntu user first)
+RUN userdel -r ubuntu 2>/dev/null || true \
+    && useradd -m -s /bin/bash -u 1000 user \
     && echo 'user:user' | chpasswd \
     && usermod -aG sudo user \
     && echo 'user ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/user \
