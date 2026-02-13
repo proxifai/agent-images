@@ -99,6 +99,17 @@
         "dependsOn": "base",
         "features": ["xvfb", "x11vnc", "openbox", "xterm", "nodejs", "npm", "pnpm", "python3", "pip"],
         "ports": [22, 5900]
+      },
+      {
+        "name": "dev-ubuntu-desktop",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/dev-ubuntu-desktop:latest",
+        "description": "Full Ubuntu XFCE desktop with Firefox, file manager, VNC, Node.js, Python",
+        "size": "~1.2GB",
+        "layer": 2,
+        "dependsOn": null,
+        "features": ["xfce4", "xvfb", "x11vnc", "firefox", "thunar", "xfce4-terminal", "mousepad", "nodejs", "npm", "pnpm", "python3", "pip", "git", "build-essential"],
+        "ports": [22, 5900]
       }
     ],
     "layer3_agents": [

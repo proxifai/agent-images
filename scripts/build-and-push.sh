@@ -50,6 +50,11 @@ docker build --build-arg BASE_REGISTRY=$REGISTRY -t $REGISTRY/dev-desktop:latest
 docker push $REGISTRY/dev-desktop:latest
 
 echo ""
+echo "=== Building dev-ubuntu-desktop image ==="
+docker build -t $REGISTRY/dev-ubuntu-desktop:latest images/dev/ubuntu-desktop/
+docker push $REGISTRY/dev-ubuntu-desktop:latest
+
+echo ""
 echo "=== All images built and pushed successfully! ==="
 echo ""
 echo "Images available at:"
@@ -61,3 +66,4 @@ echo "  - $REGISTRY/gemini-cli:latest"
 echo "  - $REGISTRY/copilot:latest"
 echo "  - $REGISTRY/aider:latest"
 echo "  - $REGISTRY/dev-desktop:latest"
+echo "  - $REGISTRY/dev-ubuntu-desktop:latest"

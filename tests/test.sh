@@ -331,6 +331,44 @@ if assert_image_exists "dev-desktop"; then
     assert_port "dev-desktop" "5900"
 fi
 
+header "━━━ Layer 2: dev-ubuntu-desktop ━━━"
+if assert_image_exists "dev-ubuntu-desktop"; then
+    assert_label "dev-ubuntu-desktop" "ai.proxifai.image.layer" "2"
+
+    log "Checking XFCE desktop..."
+    assert_cmd "dev-ubuntu-desktop" "startxfce4" "xfce4"
+    assert_cmd "dev-ubuntu-desktop" "xfce4-terminal" "xfce4-terminal"
+    assert_cmd "dev-ubuntu-desktop" "thunar" "thunar (file manager)"
+    assert_cmd "dev-ubuntu-desktop" "mousepad" "mousepad (text editor)"
+
+    log "Checking X11 and VNC..."
+    assert_cmd "dev-ubuntu-desktop" "Xvfb" "Xvfb"
+    assert_cmd "dev-ubuntu-desktop" "x11vnc" "x11vnc"
+
+    log "Checking browser..."
+    assert_cmd "dev-ubuntu-desktop" "firefox" "firefox"
+
+    log "Checking dev tools..."
+    assert_cmd "dev-ubuntu-desktop" "node" "node"
+    assert_cmd "dev-ubuntu-desktop" "npm" "npm"
+    assert_cmd "dev-ubuntu-desktop" "python3" "python3"
+    assert_cmd "dev-ubuntu-desktop" "git" "git"
+    assert_cmd "dev-ubuntu-desktop" "gcc" "gcc"
+    assert_cmd "dev-ubuntu-desktop" "vim" "vim"
+
+    log "Checking CLI tools..."
+    assert_cmd "dev-ubuntu-desktop" "curl" "curl"
+    assert_cmd "dev-ubuntu-desktop" "wget" "wget"
+    assert_cmd "dev-ubuntu-desktop" "htop" "htop"
+    assert_cmd "dev-ubuntu-desktop" "tmux" "tmux"
+    assert_cmd "dev-ubuntu-desktop" "jq" "jq"
+    assert_cmd "dev-ubuntu-desktop" "rg" "ripgrep"
+
+    log "Checking ports..."
+    assert_port "dev-ubuntu-desktop" "22"
+    assert_port "dev-ubuntu-desktop" "5900"
+fi
+
 ########################################
 # LAYER 3: AGENTS
 ########################################
@@ -425,14 +463,14 @@ fi
 ########################################
 
 header "━━━ Cross-cutting: SSH works in all images ━━━"
-for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop claude-code gemini-cli copilot aider cursor opencode; do
+for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop claude-code gemini-cli copilot aider cursor opencode; do
     if docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
         assert_cmd "$img" "sshd" "sshd in ${img}"
     fi
 done
 
 header "━━━ Cross-cutting: /workspace exists in all images ━━━"
-for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop claude-code gemini-cli copilot aider cursor opencode; do
+for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop claude-code gemini-cli copilot aider cursor opencode; do
     if docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
         assert_workdir "$img" "/workspace"
     fi
