@@ -4,10 +4,11 @@ set -e
 DISPLAY="${DISPLAY:-:99}"
 RESOLUTION="${RESOLUTION:-1920x1080x24}"
 VNC_PORT="${VNC_PORT:-5900}"
+USER_NAME="user"
+USER_HOME="/home/${USER_NAME}"
 
 echo "[desktop] Starting Xvfb on ${DISPLAY} at ${RESOLUTION}..."
 Xvfb "${DISPLAY}" -screen 0 "${RESOLUTION}" -ac +extension GLX +render -noreset &
-XVFB_PID=$!
 
 # Wait for display to be ready
 for i in $(seq 1 30); do
@@ -22,19 +23,34 @@ for i in $(seq 1 30); do
     sleep 0.2
 done
 
+# Allow the user to access the X display
+xhost +local: >/dev/null 2>&1 || true
+
 # Set a dark wallpaper color
 xsetroot -display "${DISPLAY}" -solid '#1e1e2e'
 
-echo "[desktop] Starting Openbox window manager..."
-openbox --sm-disable &
+# Start desktop session as non-root user
+# This ensures browsers and GUI apps work without --no-sandbox
+su -l "${USER_NAME}" -s /bin/bash -c "
+    export DISPLAY=${DISPLAY}
+    export HOME=${USER_HOME}
+    export XDG_RUNTIME_DIR=/tmp/runtime-${USER_NAME}
+    mkdir -p \${XDG_RUNTIME_DIR}
 
-echo "[desktop] Starting x11vnc on port ${VNC_PORT}..."
-x11vnc -display "${DISPLAY}" -forever -shared -rfbport "${VNC_PORT}" -nopw -noxdamage -xkb &
+    echo '[desktop] Starting Openbox window manager...'
+    openbox --sm-disable &
 
-# Launch an initial xterm so users see something on connect
-xterm -geometry 120x35+100+100 -fa 'DejaVu Sans Mono' -fs 11 &
+    echo '[desktop] Starting x11vnc on port ${VNC_PORT}...'
+    x11vnc -display ${DISPLAY} -forever -shared -rfbport ${VNC_PORT} -nopw -noxdamage -xkb &
 
-echo "[desktop] Desktop ready - VNC on port ${VNC_PORT}"
+    # Launch an initial xterm so users see something on connect
+    xterm -geometry 120x35+100+100 -fa 'DejaVu Sans Mono' -fs 11 &
+
+    echo '[desktop] Desktop ready - VNC on port ${VNC_PORT}'
+
+    # Keep this subshell alive
+    wait
+" &
 
 # Run sshd as PID 1 for container lifecycle
 exec /usr/sbin/sshd -D -e

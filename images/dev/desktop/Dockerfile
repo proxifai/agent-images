@@ -33,6 +33,9 @@ RUN apk add --no-cache \
     # X11 utilities
     xsetroot \
     xdpyinfo \
+    xhost \
+    # System
+    sudo \
     # Node.js
     nodejs \
     npm \
@@ -53,16 +56,28 @@ RUN apk add --no-cache \
     && pipx ensurepath \
     && rm -rf /var/cache/apk/* /tmp/* /root/.npm
 
+# Create non-root user with sudo access
+RUN adduser -D -s /bin/bash -u 1000 user \
+    && echo 'user:user' | chpasswd \
+    && addgroup user wheel \
+    && echo '%wheel ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/wheel \
+    && chmod 0440 /etc/sudoers.d/wheel
+
+# Create workspace owned by user
+RUN mkdir -p /workspace && chown user:user /workspace
+
 # Copy rootfs overlay
 COPY rootfs/ /
 
-# Make start script executable
-RUN chmod +x /usr/local/bin/start.sh
+# Make start script executable and set ownership of user config
+RUN chmod +x /usr/local/bin/start.sh \
+    && chown -R user:user /home/user/.config
 
 ENV DISPLAY=:99
 ENV RESOLUTION=1920x1080x24
 ENV VNC_PORT=5900
-ENV PATH="/root/.local/bin:${PATH}"
+ENV HOME=/home/user
+ENV PATH="/home/user/.local/bin:${PATH}"
 
 WORKDIR /workspace
 

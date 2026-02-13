@@ -13,8 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     RESOLUTION=1920x1080x24 \
     VNC_PORT=5900 \
     LANG=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8 \
-    HOME=/root
+    LC_ALL=en_US.UTF-8
 
 # Install XFCE desktop, VNC, SSH, browser, dev tools in a single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -30,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
     x11-utils \
+    x11-xserver-utils \
     dbus-x11 \
     # Browser
     firefox \
@@ -87,20 +87,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Configure SSH
+# Create non-root user with sudo access
+RUN useradd -m -s /bin/bash -u 1000 user \
+    && echo 'user:user' | chpasswd \
+    && usermod -aG sudo user \
+    && echo 'user ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/user \
+    && chmod 0440 /etc/sudoers.d/user
+
+# Configure SSH (allow both root and user)
 RUN mkdir -p /run/sshd \
     && sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
     && sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
     && echo 'root:root' | chpasswd
 
-# Create workspace
-RUN mkdir -p /workspace /root/.config
+# Create workspace owned by user
+RUN mkdir -p /workspace && chown user:user /workspace
 
 # Copy rootfs overlay (startup script, XFCE config)
 COPY rootfs/ /
 
 # Make startup script executable
 RUN chmod +x /usr/local/bin/start.sh
+
+ENV HOME=/home/user
 
 WORKDIR /workspace
 
