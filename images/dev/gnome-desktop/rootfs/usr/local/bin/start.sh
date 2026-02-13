@@ -56,7 +56,7 @@ runuser -u "${USER_NAME}" -- bash -c "
     sleep 1
 
     echo '[gnome-desktop] Starting x11vnc on port ${VNC_PORT}...'
-    x11vnc -display ${DISPLAY} -forever -shared -rfbport ${VNC_PORT} -nopw -noxdamage -xkb &
+    x11vnc -display ${DISPLAY} -forever -shared -rfbport ${VNC_PORT} -nopw -noxdamage -noshm -xkb &
 
     # Open a terminal on startup
     gnome-terminal --geometry=120x35 -- bash -c 'cd /workspace && exec bash' &

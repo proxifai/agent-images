@@ -41,7 +41,7 @@ su -l "${USER_NAME}" -s /bin/bash -c "
     openbox --sm-disable &
 
     echo '[desktop] Starting x11vnc on port ${VNC_PORT}...'
-    x11vnc -display ${DISPLAY} -forever -shared -rfbport ${VNC_PORT} -nopw -noxdamage -xkb &
+    x11vnc -display ${DISPLAY} -forever -shared -rfbport ${VNC_PORT} -nopw -noxdamage -noshm -xkb &
 
     # Launch an initial xterm so users see something on connect
     xterm -geometry 120x35+100+100 -fa 'DejaVu Sans Mono' -fs 11 &

@@ -44,7 +44,7 @@ runuser -u "${USER_NAME}" -- bash -c "
     sleep 2
 
     echo '[ubuntu-desktop] Starting x11vnc on port ${VNC_PORT}...'
-    x11vnc -display ${DISPLAY} -forever -shared -rfbport ${VNC_PORT} -nopw -noxdamage -xkb &
+    x11vnc -display ${DISPLAY} -forever -shared -rfbport ${VNC_PORT} -nopw -noxdamage -noshm -xkb &
 
     # Open a terminal on startup
     xfce4-terminal --geometry=120x35 --working-directory=/workspace &
