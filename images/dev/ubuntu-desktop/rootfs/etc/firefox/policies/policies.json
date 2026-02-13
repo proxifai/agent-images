@@ -1,0 +1,15 @@
+{
+  "policies": {
+    "RequestedLocales": ["en-US", "en"],
+    "Preferences": {
+      "intl.accept_languages": {
+        "Value": "en-US, en",
+        "Status": "default"
+      },
+      "intl.locale.requested": {
+        "Value": "en-US",
+        "Status": "default"
+      }
+    }
+  }
+}
