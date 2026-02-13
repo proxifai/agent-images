@@ -110,6 +110,17 @@
         "dependsOn": null,
         "features": ["xfce4", "xvfb", "x11vnc", "firefox", "thunar", "xfce4-terminal", "mousepad", "nodejs", "npm", "pnpm", "python3", "pip", "git", "build-essential"],
         "ports": [22, 5900]
+      },
+      {
+        "name": "dev-gnome-desktop",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/dev-gnome-desktop:latest",
+        "description": "Ubuntu GNOME Flashback desktop with Nautilus, GNOME Terminal, Firefox, dev tools",
+        "size": "~1.5GB",
+        "layer": 2,
+        "dependsOn": null,
+        "features": ["gnome-flashback", "gnome-panel", "metacity", "nautilus", "gnome-terminal", "gnome-text-editor", "firefox", "xvfb", "x11vnc", "nodejs", "npm", "pnpm", "python3", "pip", "git", "build-essential"],
+        "ports": [22, 5900]
       }
     ],
     "layer3_agents": [

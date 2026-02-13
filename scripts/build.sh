@@ -46,7 +46,7 @@ echo ""
 
 # Layer 2: Dev Environments
 log "${BOLD}=== Layer 2: Dev Environments ===${NC}"
-for img in node python go rust fullstack desktop ubuntu-desktop; do
+for img in node python go rust fullstack desktop ubuntu-desktop gnome-desktop; do
     build_image "dev/${img}" "dev-${img}"
 done
 echo ""

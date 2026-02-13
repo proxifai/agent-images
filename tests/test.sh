@@ -369,6 +369,45 @@ if assert_image_exists "dev-ubuntu-desktop"; then
     assert_port "dev-ubuntu-desktop" "5900"
 fi
 
+header "━━━ Layer 2: dev-gnome-desktop ━━━"
+if assert_image_exists "dev-gnome-desktop"; then
+    assert_label "dev-gnome-desktop" "ai.proxifai.image.layer" "2"
+
+    log "Checking GNOME Flashback..."
+    assert_cmd "dev-gnome-desktop" "gnome-panel" "gnome-panel"
+    assert_cmd "dev-gnome-desktop" "metacity" "metacity"
+    assert_cmd "dev-gnome-desktop" "gnome-terminal" "gnome-terminal"
+    assert_cmd "dev-gnome-desktop" "nautilus" "nautilus (file manager)"
+    assert_cmd "dev-gnome-desktop" "gnome-text-editor" "gnome-text-editor"
+    assert_cmd "dev-gnome-desktop" "gnome-calculator" "gnome-calculator"
+
+    log "Checking X11 and VNC..."
+    assert_cmd "dev-gnome-desktop" "Xvfb" "Xvfb"
+    assert_cmd "dev-gnome-desktop" "x11vnc" "x11vnc"
+
+    log "Checking browser..."
+    assert_cmd "dev-gnome-desktop" "firefox" "firefox"
+
+    log "Checking dev tools..."
+    assert_cmd "dev-gnome-desktop" "node" "node"
+    assert_cmd "dev-gnome-desktop" "npm" "npm"
+    assert_cmd "dev-gnome-desktop" "python3" "python3"
+    assert_cmd "dev-gnome-desktop" "git" "git"
+    assert_cmd "dev-gnome-desktop" "gcc" "gcc"
+    assert_cmd "dev-gnome-desktop" "vim" "vim"
+
+    log "Checking CLI tools..."
+    assert_cmd "dev-gnome-desktop" "curl" "curl"
+    assert_cmd "dev-gnome-desktop" "htop" "htop"
+    assert_cmd "dev-gnome-desktop" "tmux" "tmux"
+    assert_cmd "dev-gnome-desktop" "jq" "jq"
+    assert_cmd "dev-gnome-desktop" "rg" "ripgrep"
+
+    log "Checking ports..."
+    assert_port "dev-gnome-desktop" "22"
+    assert_port "dev-gnome-desktop" "5900"
+fi
+
 ########################################
 # LAYER 3: AGENTS
 ########################################
@@ -463,14 +502,14 @@ fi
 ########################################
 
 header "━━━ Cross-cutting: SSH works in all images ━━━"
-for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop claude-code gemini-cli copilot aider cursor opencode; do
+for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop dev-gnome-desktop claude-code gemini-cli copilot aider cursor opencode; do
     if docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
         assert_cmd "$img" "sshd" "sshd in ${img}"
     fi
 done
 
 header "━━━ Cross-cutting: /workspace exists in all images ━━━"
-for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop claude-code gemini-cli copilot aider cursor opencode; do
+for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop dev-gnome-desktop claude-code gemini-cli copilot aider cursor opencode; do
     if docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
         assert_workdir "$img" "/workspace"
     fi

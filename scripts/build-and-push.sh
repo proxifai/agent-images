@@ -55,6 +55,11 @@ docker build -t $REGISTRY/dev-ubuntu-desktop:latest images/dev/ubuntu-desktop/
 docker push $REGISTRY/dev-ubuntu-desktop:latest
 
 echo ""
+echo "=== Building dev-gnome-desktop image ==="
+docker build -t $REGISTRY/dev-gnome-desktop:latest images/dev/gnome-desktop/
+docker push $REGISTRY/dev-gnome-desktop:latest
+
+echo ""
 echo "=== All images built and pushed successfully! ==="
 echo ""
 echo "Images available at:"
@@ -67,3 +72,4 @@ echo "  - $REGISTRY/copilot:latest"
 echo "  - $REGISTRY/aider:latest"
 echo "  - $REGISTRY/dev-desktop:latest"
 echo "  - $REGISTRY/dev-ubuntu-desktop:latest"
+echo "  - $REGISTRY/dev-gnome-desktop:latest"

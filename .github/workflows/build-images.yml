@@ -71,6 +71,8 @@ jobs:
             path: images/dev/desktop
           - name: dev-ubuntu-desktop
             path: images/dev/ubuntu-desktop
+          - name: dev-gnome-desktop
+            path: images/dev/gnome-desktop
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -162,7 +164,7 @@ jobs:
 
       - name: Pull all images
         run: |
-          for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop claude-code gemini-cli copilot aider cursor opencode; do
+          for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop dev-gnome-desktop claude-code gemini-cli copilot aider cursor opencode; do
             docker pull ${{ env.IMAGE_PREFIX }}/${img}:latest
             docker tag ${{ env.IMAGE_PREFIX }}/${img}:latest proxifai/${img}:latest
           done
