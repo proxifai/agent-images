@@ -45,6 +45,11 @@ docker build -t $REGISTRY/aider:latest images/aider/
 docker push $REGISTRY/aider:latest
 
 echo ""
+echo "=== Building dev-desktop image ==="
+docker build --build-arg BASE_REGISTRY=$REGISTRY -t $REGISTRY/dev-desktop:latest images/dev/desktop/
+docker push $REGISTRY/dev-desktop:latest
+
+echo ""
 echo "=== All images built and pushed successfully! ==="
 echo ""
 echo "Images available at:"
@@ -55,3 +60,4 @@ echo "  - $REGISTRY/opencode:latest"
 echo "  - $REGISTRY/gemini-cli:latest"
 echo "  - $REGISTRY/copilot:latest"
 echo "  - $REGISTRY/aider:latest"
+echo "  - $REGISTRY/dev-desktop:latest"

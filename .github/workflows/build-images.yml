@@ -67,6 +67,8 @@ jobs:
             path: images/dev/rust
           - name: dev-fullstack
             path: images/dev/fullstack
+          - name: dev-desktop
+            path: images/dev/desktop
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -158,7 +160,7 @@ jobs:
 
       - name: Pull all images
         run: |
-          for img in base dev-node dev-python dev-go dev-rust dev-fullstack claude-code gemini-cli copilot aider cursor opencode; do
+          for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop claude-code gemini-cli copilot aider cursor opencode; do
             docker pull ${{ env.IMAGE_PREFIX }}/${img}:latest
             docker tag ${{ env.IMAGE_PREFIX }}/${img}:latest proxifai/${img}:latest
           done

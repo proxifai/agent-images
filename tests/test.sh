@@ -303,6 +303,34 @@ if assert_image_exists "dev-fullstack"; then
     assert_cmd "dev-fullstack" "g++" "g++"
 fi
 
+header "━━━ Layer 2: dev-desktop ━━━"
+if assert_image_exists "dev-desktop"; then
+    assert_label "dev-desktop" "ai.proxifai.image.layer" "2"
+
+    log "Checking base inheritance..."
+    assert_cmd "dev-desktop" "nvim" "neovim (from base)"
+    assert_cmd "dev-desktop" "rg" "ripgrep (from base)"
+    assert_cmd "dev-desktop" "tmux" "tmux (from base)"
+
+    log "Checking X11 and VNC..."
+    assert_cmd "dev-desktop" "Xvfb" "Xvfb"
+    assert_cmd "dev-desktop" "x11vnc" "x11vnc"
+    assert_cmd "dev-desktop" "openbox" "openbox"
+    assert_cmd "dev-desktop" "xterm" "xterm"
+
+    log "Checking Node.js..."
+    assert_cmd "dev-desktop" "node" "node"
+    assert_cmd "dev-desktop" "npm" "npm"
+    assert_cmd "dev-desktop" "pnpm" "pnpm"
+
+    log "Checking Python..."
+    assert_cmd "dev-desktop" "python3" "python3"
+
+    log "Checking ports..."
+    assert_port "dev-desktop" "22"
+    assert_port "dev-desktop" "5900"
+fi
+
 ########################################
 # LAYER 3: AGENTS
 ########################################
@@ -397,14 +425,14 @@ fi
 ########################################
 
 header "━━━ Cross-cutting: SSH works in all images ━━━"
-for img in base dev-node dev-python dev-go dev-rust dev-fullstack claude-code gemini-cli copilot aider cursor opencode; do
+for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop claude-code gemini-cli copilot aider cursor opencode; do
     if docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
         assert_cmd "$img" "sshd" "sshd in ${img}"
     fi
 done
 
 header "━━━ Cross-cutting: /workspace exists in all images ━━━"
-for img in base dev-node dev-python dev-go dev-rust dev-fullstack claude-code gemini-cli copilot aider cursor opencode; do
+for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop claude-code gemini-cli copilot aider cursor opencode; do
     if docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
         assert_workdir "$img" "/workspace"
     fi
