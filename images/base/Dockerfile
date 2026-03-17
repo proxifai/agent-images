@@ -69,7 +69,12 @@ RUN apk add --no-cache \
     && rm -rf /var/cache/apk/* /tmp/*
 
 # Install pfai CLI for agent-platform communication
-COPY --from=ghcr.io/proxifai/pfai:latest /pfai /usr/local/bin/pfai
+# Use local binary if present, otherwise pull from GHCR
+COPY pfai /usr/local/bin/pfai
+
+# Generic agent entrypoint (handles clone, tool execution, push, PR for all tools)
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Pre-create directories for volume mounts
 RUN mkdir -p /root/.claude /etc/claude-code /workspace
@@ -78,4 +83,4 @@ WORKDIR /workspace
 
 EXPOSE 22
 
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+CMD ["/usr/local/bin/entrypoint.sh"]

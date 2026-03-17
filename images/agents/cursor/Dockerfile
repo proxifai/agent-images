@@ -15,4 +15,4 @@ LABEL ai.proxifai.base-tool="cursor"
 
 WORKDIR /workspace
 EXPOSE 22
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+# Inherits generic entrypoint from base image (cursor is interactive-only, entrypoint handles gracefully)

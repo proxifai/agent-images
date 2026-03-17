@@ -22,4 +22,4 @@ RUN mkdir -p /root/.claude /etc/claude-code
 
 WORKDIR /workspace
 EXPOSE 22
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+# Inherits generic entrypoint from base image (selects claude-code via PROXIFAI_AGENT_TOOL)

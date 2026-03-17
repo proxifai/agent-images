@@ -19,4 +19,4 @@ RUN apk add --no-cache github-cli \
 
 WORKDIR /workspace
 EXPOSE 22
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+# Inherits generic entrypoint from base image (copilot is interactive-only, entrypoint handles gracefully)

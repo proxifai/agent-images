@@ -19,4 +19,4 @@ RUN pipx install aider-chat \
 
 WORKDIR /workspace
 EXPOSE 22
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+# Inherits generic entrypoint from base image (selects aider via PROXIFAI_AGENT_TOOL)

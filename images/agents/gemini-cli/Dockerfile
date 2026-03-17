@@ -20,4 +20,4 @@ RUN npm install -g @anthropic-ai/gemini-cli 2>/dev/null \
 
 WORKDIR /workspace
 EXPOSE 22
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+# Inherits generic entrypoint from base image (selects gemini-cli via PROXIFAI_AGENT_TOOL)

@@ -13,10 +13,16 @@ LABEL ai.proxifai.image.version="2.0.0"
 LABEL ai.proxifai.image.layer="3"
 LABEL ai.proxifai.base-tool="opencode"
 
-# Install ttyd for web terminal
-RUN apk add --no-cache ttyd \
+# Install ttyd for web terminal and Node.js for OpenCode provider plugins
+RUN apk add --no-cache ttyd nodejs npm \
     && rm -rf /var/cache/apk/* /tmp/*
+
+# Install OpenCode AI coding agent (requires Go >= 1.24, auto-download toolchain)
+RUN GOTOOLCHAIN=auto go install github.com/opencode-ai/opencode@latest \
+    && rm -rf /root/go/pkg /tmp/*
 
 WORKDIR /workspace
 EXPOSE 22 3000
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+
+# Restore entrypoint as CMD (dev-go layer overrides base CMD with sshd)
+CMD ["/usr/local/bin/entrypoint.sh"]
