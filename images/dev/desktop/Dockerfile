@@ -58,7 +58,6 @@ RUN apk add --no-cache \
         pnpm \
         typescript \
         playwright \
-    && npx playwright install --with-deps chromium \
     && python3 -m pip install --no-cache-dir --break-system-packages \
         pipx \
     && pipx ensurepath \
@@ -80,6 +79,10 @@ COPY rootfs/ /
 # Make start script executable and set ownership of user config
 RUN chmod +x /usr/local/bin/start.sh \
     && chown -R user:user /home/user/.config
+
+# Use system chromium (Alpine apk) instead of playwright's glibc binary
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 ENV DISPLAY=:99
 ENV RESOLUTION=1920x1080x24
