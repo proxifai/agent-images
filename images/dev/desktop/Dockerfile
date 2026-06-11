@@ -34,6 +34,12 @@ RUN apk add --no-cache \
     xsetroot \
     xdpyinfo \
     xhost \
+    # Screen interaction / capture
+    xdotool \
+    scrot \
+    imagemagick \
+    # Browser
+    chromium \
     # System
     sudo \
     # Node.js
@@ -51,6 +57,8 @@ RUN apk add --no-cache \
     && npm install -g \
         pnpm \
         typescript \
+        playwright \
+    && npx playwright install --with-deps chromium \
     && python3 -m pip install --no-cache-dir --break-system-packages \
         pipx \
     && pipx ensurepath \

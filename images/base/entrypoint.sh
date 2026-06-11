@@ -231,6 +231,28 @@ chmod +x /tmp/agent-workflow.sh
 # ─── Disable ERR trap (workflow script handles its own errors) ───
 trap - ERR
 
+# ─── Live stderr streaming ───
+# The workflow redirects its stdout+stderr to $OUTPUT_LOG via tee — we tail
+# that file and forward each line to the execution timeline. The periodic
+# upload_output below still sends the full blob as a final backup.
+touch "$OUTPUT_LOG"
+STREAM_PID=""
+if command -v pfai >/dev/null 2>&1 && [ -n "${PROXIFAI_EXECUTION_ID:-}" ]; then
+    # tail -F follows renames/truncations; --retry keeps going if the file
+    # is briefly absent. stdbuf flushes each line so batching is bounded by
+    # --batch-ms, not pipe buffering.
+    ( stdbuf -oL -eL tail -F -n 0 "$OUTPUT_LOG" 2>/dev/null \
+        | pfai exec stream --stream stdout --batch-lines 50 --batch-ms 500 \
+        >/dev/null 2>&1 ) &
+    STREAM_PID=$!
+fi
+cleanup_stream() {
+    if [ -n "$STREAM_PID" ]; then
+        kill "$STREAM_PID" 2>/dev/null || true
+    fi
+}
+trap cleanup_stream EXIT
+
 # ─── Start the agent workflow inside a tmux session ───
 log "Starting agent workflow in tmux session..."
 tmux new-session -d -s agent /tmp/agent-workflow.sh
