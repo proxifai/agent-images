@@ -121,6 +121,8 @@ jobs:
             path: images/agents/cursor
           - name: opencode
             path: images/agents/opencode
+          - name: devpod
+            path: images/agents/devpod
     steps:
       - name: Checkout
         uses: actions/checkout@v4

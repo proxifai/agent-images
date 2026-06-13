@@ -29,7 +29,23 @@ TMUX_CONF
 
 echo "=== ProxifAI OpenCode Agent ==="
 echo "Execution ID: ${PROXIFAI_EXECUTION_ID:-unknown}"
+echo "Mode: ${PROXIFAI_AGENT_MODE:-implement}"
 echo "Task: ${PROXIFAI_TASK_TITLE:-none}"
+
+# ─── Review mode: fetch diff, run opencode, post structured review, exit. ───
+# The trigger executor sets PROXIFAI_AGENT_MODE=review when the dispatch
+# was fired by a pr.* event (see internal/triggers/executor.go
+# dispatchPropsForEvent). All PR context lives in PROXIFAI_PR_* env vars
+# populated from the bridged forge event payload — no Issue row required.
+if [ "${PROXIFAI_AGENT_MODE:-}" = "review" ]; then
+    /usr/local/bin/review-entrypoint.sh
+    REVIEW_EXIT=$?
+    upload_output
+    # Keep the container alive briefly so the SSE event drain catches the
+    # final status update before reconciliation tears the pod down.
+    sleep 5
+    exit "$REVIEW_EXIT"
+fi
 
 # ─── If no repo clone URL, just keep the container alive for interactive use ───
 if [ -z "${PROXIFAI_REPO_CLONE_URL:-}" ]; then

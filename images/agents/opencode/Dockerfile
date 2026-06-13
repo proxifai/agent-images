@@ -21,6 +21,13 @@ RUN apk add --no-cache ttyd nodejs npm \
 RUN GOTOOLCHAIN=auto go install github.com/opencode-ai/opencode@latest \
     && rm -rf /root/go/pkg /tmp/*
 
+# Ship review-mode entrypoint alongside the default implement-mode one.
+# entrypoint.sh dispatches to review-entrypoint.sh when
+# PROXIFAI_AGENT_MODE=review (set by the trigger executor on pr.* events).
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY review-entrypoint.sh /usr/local/bin/review-entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/review-entrypoint.sh
+
 WORKDIR /workspace
 EXPOSE 22 3000
 

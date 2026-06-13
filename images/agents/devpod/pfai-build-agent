@@ -1,0 +1,4 @@
+#!/bin/sh
+# Wrapper so the agent CLI is invokable by short name from any PATH.
+# The real logic lives in /opt/devpod/agent.ts and runs under bun.
+exec bun /opt/devpod/agent.ts "$@"

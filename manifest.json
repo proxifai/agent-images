@@ -195,6 +195,18 @@
         "baseTool": "opencode",
         "ports": [22, 3000],
         "recommended": true
+      },
+      {
+        "name": "devpod",
+        "tag": "latest",
+        "fullName": "ghcr.io/proxifai/agent-images/devpod:latest",
+        "description": "Long-lived vite dev pod for the ProxiBuild Lovable-style AI app builder",
+        "size": "~260MB",
+        "layer": 3,
+        "dependsOn": "dev-node",
+        "baseTool": "devpod",
+        "ports": [5173],
+        "recommended": false
       }
     ]
   }
