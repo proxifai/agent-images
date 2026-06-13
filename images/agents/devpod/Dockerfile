@@ -22,7 +22,7 @@ LABEL ai.proxifai.base-tool="devpod"
 # are installed per-scaffold so the image stays small and the scaffold's
 # lockfile stays the source of truth.
 RUN apk add --no-cache curl unzip \
-    && curl -fsSL https://bun.sh/install | bash -s -- --no-cache \
+    && curl -fsSL https://bun.sh/install | bash \
     && ln -s /root/.bun/bin/bun /usr/local/bin/bun \
     && rm -rf /var/cache/apk/* /tmp/*
 
