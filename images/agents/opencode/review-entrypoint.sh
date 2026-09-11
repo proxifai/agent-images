@@ -70,6 +70,13 @@ git fetch origin "$HEAD_SHA" 2>&1 || true
 git fetch origin "$BASE_REF" 2>&1 || true
 git checkout "$HEAD_SHA" 2>&1
 
+# Resolve organization skills plus repository-local overrides before review.
+# The generated files are sandbox context and must never appear in the review.
+echo "Syncing skills for OpenCode ..."
+if ! pfai skills install --agent opencode --dir /workspace/repo --git-exclude 2>&1; then
+    echo "WARNING: could not sync OpenCode skills; continuing without managed skills"
+fi
+
 # Resolve the merge-base if BASE_SHA wasn't passed.
 if [ -z "$BASE_SHA" ]; then
     BASE_SHA="$(git merge-base "origin/${BASE_REF}" HEAD 2>/dev/null || echo "origin/${BASE_REF}")"
@@ -144,7 +151,7 @@ if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
     cat > "$RAW_OUT" << 'NOKEYS'
 {"summary": "Proxifai review bot: no LLM provider is wired (set ANTHROPIC_API_KEY or OPENAI_API_KEY via the LLM gateway). Diff was fetched but no automated review was performed.", "comments": []}
 NOKEYS
-elif ! opencode -p "$(cat /tmp/review-prompt.txt)" -c /workspace/repo > "$RAW_OUT" 2>&1; then
+elif ! opencode run --dir /workspace/repo --auto "$(cat /tmp/review-prompt.txt)" > "$RAW_OUT" 2>&1; then
     echo "WARNING: opencode exited non-zero — proceeding with whatever output we have"
 fi
 echo "OpenCode output: $(wc -c < "$RAW_OUT") bytes"

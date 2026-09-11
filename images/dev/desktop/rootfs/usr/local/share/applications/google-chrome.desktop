@@ -1,0 +1,17 @@
+[Desktop Entry]
+Version=1.0
+Name=Google Chrome
+GenericName=Web Browser
+Comment=Browse the web — the same browser the agent drives
+# Overrides Google's own entry in /usr/share/applications. XDG_DATA_DIRS puts
+# /usr/local/share first, so the dock, the menu and every xdg-open land here
+# and get a browser with the DevTools port open. Clicking the dock icon used to
+# start a SECOND, undrivable Chrome; the agent would then report the port as
+# refused while a browser sat there in plain sight.
+Exec=/usr/local/bin/agent-chrome %U
+StartupNotify=true
+Terminal=false
+Icon=google-chrome
+Type=Application
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;

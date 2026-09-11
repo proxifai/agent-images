@@ -9,6 +9,13 @@ TAG="${TAG:-latest}"
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGES_DIR="${DIR}/images"
 
+# The clusters run linux/amd64. Without an explicit platform, `docker build` on
+# an arm64 workstation produces arm64 images that a Hetzner node cannot run —
+# and the base image now carries a per-TARGETARCH pfai binary, so the arch has
+# to be stated rather than inferred. Override with PLATFORM= for a native build.
+PLATFORM="${PLATFORM:-linux/amd64}"
+PUSH="${PUSH:-0}"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -23,10 +30,14 @@ build_image() {
     local path="$1"
     local name="$2"
     local tag="${REGISTRY}/${name}:${TAG}"
-    log "Building ${BOLD}${tag}${NC} ..."
-    if docker build \
+    log "Building ${BOLD}${tag}${NC} (${PLATFORM}) ..."
+    local out_flag="--load"
+    [ "${PUSH}" = "1" ] && out_flag="--push"
+    if docker buildx build \
+        --platform "${PLATFORM}" \
         --build-arg BASE_REGISTRY="${REGISTRY}" \
         -t "${tag}" \
+        "${out_flag}" \
         "${IMAGES_DIR}/${path}"; then
         ok "${tag}"
     else
@@ -53,7 +64,10 @@ echo ""
 
 # Layer 3: Agents
 log "${BOLD}=== Layer 3: Agents ===${NC}"
-for img in claude-code gemini-cli copilot aider cursor opencode; do
+# devpod belongs here too — it is the 16th entry in manifest.json and the image
+# the AI app-builder runs. It was missing from this list, so `build.sh` printed
+# "All images built successfully" having never built it.
+for img in claude-code gemini-cli copilot aider cursor opencode devpod; do
     build_image "agents/${img}" "${img}"
 done
 echo ""

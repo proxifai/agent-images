@@ -20,3 +20,8 @@ RUN pipx install aider-chat \
 WORKDIR /workspace
 EXPOSE 22
 # Inherits generic entrypoint from base image (selects aider via PROXIFAI_AGENT_TOOL)
+
+# Restore the agent entrypoint as CMD: the dev-python layer overrides the
+# base image's CMD with sshd, so without this the container starts a bare
+# sshd and the agent never runs (the execution then hangs at "running").
+CMD ["/usr/local/bin/entrypoint.sh"]

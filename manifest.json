@@ -93,12 +93,12 @@
         "name": "dev-desktop",
         "tag": "latest",
         "fullName": "ghcr.io/proxifai/agent-images/dev-desktop:latest",
-        "description": "Graphical desktop with Openbox, VNC, Node.js, Python for remote desktop development",
-        "size": "~300MB",
+        "description": "Debian bot desktop with per-screen xfwm4/VNC/Chrome plus shared tmux, OpenCode and Claude Code",
+        "size": "~1.5GB",
         "layer": 2,
-        "dependsOn": "base",
-        "features": ["xvfb", "x11vnc", "openbox", "xterm", "nodejs", "npm", "pnpm", "python3", "pip"],
-        "ports": [22, 5900]
+        "dependsOn": null,
+        "features": ["xvfb", "x11vnc", "xfwm4", "picom", "xterm", "google-chrome", "tmux", "nodejs-22", "npm", "pnpm", "opencode", "claude-code", "python3", "pip"],
+        "ports": [22, 5900, 5901, 5902, 5903, 5904, 5905, 5906, 5907, 9222, 9223, 9224, 9225, 9226, 9227, 9228, 9229]
       },
       {
         "name": "dev-ubuntu-desktop",
@@ -188,7 +188,7 @@
         "name": "opencode",
         "tag": "latest",
         "fullName": "ghcr.io/proxifai/agent-images/opencode:latest",
-        "description": "OpenCode agent on Go development environment with web terminal",
+        "description": "Current OpenCode CLI on a Go development environment with web terminal",
         "size": "~420MB",
         "layer": 3,
         "dependsOn": "dev-go",

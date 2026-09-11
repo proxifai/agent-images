@@ -32,6 +32,39 @@ echo "Execution ID: ${PROXIFAI_EXECUTION_ID:-unknown}"
 echo "Mode: ${PROXIFAI_AGENT_MODE:-implement}"
 echo "Task: ${PROXIFAI_TASK_TITLE:-none}"
 
+# ─── Configure OpenCode for the ProxifAI gateway ───
+# Execution pods receive an HMAC-scoped OPENAI_API_KEY and OPENAI_BASE_URL from
+# the control plane. Use the same custom-provider shape as interactive VMs so
+# every model goes through /v1/chat/completions and the credential stays in the
+# environment rather than being copied into JSON.
+if [ -n "${OPENAI_BASE_URL:-}" ] && [ -n "${OPENAI_API_KEY:-}" ]; then
+    OPENCODE_GATEWAY_MODEL="${PROXIFAI_LLM_MODEL:-anthropic/claude-sonnet-4.6}"
+    case "$OPENCODE_GATEWAY_MODEL" in
+        proxifai/*)
+            OPENCODE_GATEWAY_MODEL="${OPENCODE_GATEWAY_MODEL#*/}"
+            ;;
+    esac
+    mkdir -p /root/.config/opencode
+    jq -n \
+        --arg baseURL "${OPENAI_BASE_URL%/}" \
+        --arg model "$OPENCODE_GATEWAY_MODEL" \
+        '{
+          "$schema": "https://opencode.ai/config.json",
+          "model": ("proxifai/" + $model),
+          "small_model": ("proxifai/" + $model),
+          "enabled_providers": ["proxifai"],
+          "provider": {
+            "proxifai": {
+              "npm": "@ai-sdk/openai-compatible",
+              "name": "ProxifAI Gateway",
+              "options": {"baseURL": $baseURL, "apiKey": "{env:OPENAI_API_KEY}"},
+              "models": {($model): {"name": $model}}
+            }
+          }
+        }' > /root/.config/opencode/opencode.json
+    chmod 600 /root/.config/opencode/opencode.json
+fi
+
 # ─── Review mode: fetch diff, run opencode, post structured review, exit. ───
 # The trigger executor sets PROXIFAI_AGENT_MODE=review when the dispatch
 # was fired by a pr.* event (see internal/triggers/executor.go
@@ -50,6 +83,10 @@ fi
 # ─── If no repo clone URL, just keep the container alive for interactive use ───
 if [ -z "${PROXIFAI_REPO_CLONE_URL:-}" ]; then
     echo "No PROXIFAI_REPO_CLONE_URL set — running in interactive mode."
+    echo "Syncing organization skills for OpenCode ..."
+    if ! pfai skills install --agent opencode --global --dir /root/.config/opencode 2>&1; then
+        echo "WARNING: could not sync OpenCode skills; continuing without managed skills"
+    fi
     upload_output
     tmux new-session -d -s agent "cd /workspace && exec bash"
     exec sleep infinity
@@ -74,6 +111,13 @@ fi
 
 cd /workspace/repo
 git checkout -b "${PROXIFAI_BRANCH_NAME:-agent/task}"
+
+# Install both the organization library and this repository's local overrides
+# before OpenCode starts. Generated context stays out of the agent's PR.
+echo "Syncing skills for OpenCode ..."
+if ! pfai skills install --agent opencode --dir /workspace/repo --git-exclude 2>&1; then
+    echo "WARNING: could not sync OpenCode skills; continuing without managed skills"
+fi
 
 # ─── Save prompt to file (avoids quoting issues with tmux) ───
 cat > /tmp/agent-prompt.txt << PROMPT_EOF
@@ -107,8 +151,10 @@ echo "Task: ${PROXIFAI_TASK_TITLE}"
 echo ""
 
 # ─── Run OpenCode in non-interactive mode ───
-opencode -p "$PROMPT" -c /workspace/repo 2>&1
+set +e
+opencode run --dir /workspace/repo --auto "$PROMPT" 2>&1
 OPENCODE_EXIT=$?
+set -e
 
 if [ $OPENCODE_EXIT -eq 0 ]; then
     echo "=== OpenCode completed ==="

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The bot's dock: a centred bar at the bottom of the screen.
+
+  xfce4-panel rather than plank. plank is the more literally macOS-shaped dock
+  (zoom on hover, centred icons) and it does start here, but on a headless Xvfb
+  it places itself with its lower half below the screen edge — icons cut in
+  half, unusable — and it has been unmaintained since 2021. xfce4-panel is the
+  same generation as the window manager (4.20), places itself correctly, and
+  its tasklist plugin is what actually answers "let me switch apps": every open
+  window becomes a button.
+
+  length=1 with length-adjust shrinks the bar to its contents instead of
+  spanning the screen, which is what makes it read as a dock rather than a
+  taskbar.
+-->
+<channel name="xfce4-panel" version="1.0">
+  <property name="panels" type="array">
+    <value type="int" value="1"/>
+    <property name="dark-mode" type="bool" value="true"/>
+    <property name="panel-1" type="empty">
+      <!-- p=10 anchors bottom-centre; x/y are re-derived from the real screen
+           size at session start, so this works at any RESOLUTION. -->
+      <property name="position" type="string" value="p=10;x=960;y=1080"/>
+      <property name="length" type="uint" value="1"/>
+      <property name="length-adjust" type="bool" value="true"/>
+      <property name="size" type="uint" value="56"/>
+      <property name="icon-size" type="uint" value="40"/>
+      <property name="position-locked" type="bool" value="true"/>
+      <property name="autohide-behavior" type="uint" value="0"/>
+      <property name="background-style" type="uint" value="1"/>
+      <property name="background-rgba" type="array">
+        <value type="double" value="0.13"/><value type="double" value="0.13"/>
+        <value type="double" value="0.15"/><value type="double" value="0.82"/>
+      </property>
+      <property name="enter-opacity" type="uint" value="100"/>
+      <property name="leave-opacity" type="uint" value="90"/>
+      <property name="plugin-ids" type="array">
+        <value type="int" value="1"/><value type="int" value="2"/>
+        <value type="int" value="3"/><value type="int" value="4"/>
+        <value type="int" value="5"/><value type="int" value="6"/>
+      </property>
+    </property>
+  </property>
+  <property name="plugins" type="empty">
+    <property name="plugin-1" type="string" value="launcher">
+      <property name="items" type="array"><value type="string" value="google-chrome.desktop"/></property>
+    </property>
+    <property name="plugin-2" type="string" value="launcher">
+      <property name="items" type="array"><value type="string" value="proxifai-terminal.desktop"/></property>
+    </property>
+    <property name="plugin-3" type="string" value="launcher">
+      <property name="items" type="array"><value type="string" value="thunar.desktop"/></property>
+    </property>
+    <property name="plugin-4" type="string" value="launcher">
+      <property name="items" type="array"><value type="string" value="org.xfce.mousepad.desktop"/></property>
+    </property>
+    <property name="plugin-5" type="string" value="separator">
+      <property name="style" type="uint" value="0"/>
+    </property>
+    <!-- The app switcher. grouping keeps one button per application; labels
+         off keeps it icon-only, like a dock. -->
+    <property name="plugin-6" type="string" value="tasklist">
+      <property name="grouping" type="bool" value="true"/>
+      <property name="show-labels" type="bool" value="false"/>
+      <property name="flat-buttons" type="bool" value="true"/>
+      <property name="show-handle" type="bool" value="false"/>
+      <property name="include-all-workspaces" type="bool" value="true"/>
+    </property>
+  </property>
+</channel>

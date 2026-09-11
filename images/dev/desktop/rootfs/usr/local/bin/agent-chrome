@@ -1,0 +1,39 @@
+#!/bin/bash
+# The browser the agent can drive.
+#
+# WHY THIS EXISTS
+#
+# There must be exactly ONE way to start Chrome on this desktop, because a
+# Chrome started without --remote-debugging-port is invisible to the platform:
+# browser_action attaches over CDP, so a browser with no open port is one the
+# agent can see in a screenshot and never touch. That is not a hypothetical —
+# the dock's stock google-chrome.desktop launched precisely that browser, and
+# the machine ended up showing a perfectly good window the bot reported as
+# "CDP on port 9222 is refused".
+#
+# So: the session script starts the browser through here, and the dock's
+# launcher is overridden to come through here too (see
+# /usr/local/share/applications/google-chrome.desktop). Whichever one you use,
+# you get the drivable browser.
+#
+# A second invocation while one is already running is Chrome's own
+# open-a-window-in-the-existing-instance path — same --user-data-dir, so the
+# debugging port stays where it was.
+set -u
+
+CDP_PORT="${CDP_PORT_FOR_SCREEN:-9222}"
+SCREEN_INDEX="${SCREEN_INDEX:-0}"
+
+exec google-chrome \
+    --remote-debugging-port="$CDP_PORT" \
+    --remote-allow-origins='*' \
+    --no-sandbox \
+    --test-type \
+    --disable-dev-shm-usage \
+    --disable-gpu \
+    --no-first-run \
+    --no-default-browser-check \
+    --disable-features=TranslateUI \
+    --start-maximized \
+    --user-data-dir="${HOME}/.chrome-screen-${SCREEN_INDEX}" \
+    "$@"

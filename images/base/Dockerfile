@@ -68,9 +68,29 @@ RUN apk add --no-cache \
     # Cleanup
     && rm -rf /var/cache/apk/* /tmp/*
 
-# Install pfai CLI for agent-platform communication
-# Use local binary if present, otherwise pull from GHCR
-COPY pfai /usr/local/bin/pfai
+# Install pfai CLI for agent-platform communication.
+#
+# Per-arch on purpose. A single committed `pfai` used to ship here, and it was
+# an aarch64 binary while CI builds these images linux/amd64 only — so every
+# pfai call in entrypoint.sh returned "exec format error". Because each call
+# site ends in `2>/dev/null || true`, and `command -v pfai` still succeeds, the
+# failure was completely silent: no status reporting, no log streaming, no
+# output upload, no PR creation. Keep both binaries in step with the platform
+# (`make -C ../proxifai build-go` style cross-builds) and never collapse this
+# back to one file.
+ARG TARGETARCH
+COPY pfai-${TARGETARCH} /usr/local/bin/pfai
+# Fail the build rather than ship an unrunnable CLI again. This reads the ELF
+# header's e_machine field (offset 18) instead of executing the binary: `pfai`
+# runs maybeNudgeSkills on every invocation, which touches the filesystem, so
+# an exec-based check could hang or fail for reasons unrelated to the arch.
+# 62 = x86-64, 183 = aarch64.
+RUN chmod +x /usr/local/bin/pfai \
+    && _m="$(od -An -tu1 -j18 -N1 /usr/local/bin/pfai | tr -d ' ')" \
+    && case "${TARGETARCH}:${_m}" in \
+         amd64:62|arm64:183) echo "pfai ok: ${TARGETARCH} (e_machine=${_m})" ;; \
+         *) echo "FATAL: pfai e_machine=${_m} does not match TARGETARCH=${TARGETARCH}"; exit 1 ;; \
+       esac
 
 # Generic agent entrypoint (handles clone, tool execution, push, PR for all tools)
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh

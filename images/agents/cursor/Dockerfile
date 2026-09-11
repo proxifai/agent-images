@@ -16,3 +16,8 @@ LABEL ai.proxifai.base-tool="cursor"
 WORKDIR /workspace
 EXPOSE 22
 # Inherits generic entrypoint from base image (cursor is interactive-only, entrypoint handles gracefully)
+
+# Restore the agent entrypoint as CMD: the dev-fullstack layer overrides the
+# base image's CMD with sshd, so without this the container starts a bare
+# sshd and the agent never runs (the execution then hangs at "running").
+CMD ["/usr/local/bin/entrypoint.sh"]

@@ -108,6 +108,52 @@ assert_port() {
     fi
 }
 
+# Boot the desktop and prove both its startup terminal and a dock-equivalent
+# launcher attach to the one character session the agent controls.
+assert_shared_terminal() {
+    local image="$1"
+    local name="pfai-image-terminal-test-$$-${RANDOM}"
+    local ready=0
+    local attached=0
+
+    if ! docker run --rm -d --name "$name" \
+        -e LAUNCH_BROWSER=0 -e COMPOSITOR=0 \
+        "${REGISTRY}/${image}:${TAG}" >/dev/null; then
+        fail "${image}: could not boot desktop for shared-terminal test"
+        return
+    fi
+
+    for _ in $(seq 1 40); do
+        if docker exec "$name" sudo -u user \
+            tmux -L proxifai-screen-0 has-session -t pfai-main >/dev/null 2>&1; then
+            ready=1
+            break
+        fi
+        sleep 0.25
+    done
+    if [ "$ready" -eq 1 ]; then
+        if docker exec -d -u user -e DISPLAY=:99 -e SCREEN_INDEX=0 -e HOME=/home/user \
+            "$name" /usr/local/bin/agent-terminal; then
+            for _ in $(seq 1 20); do
+                attached=$(docker exec "$name" sudo -u user tmux -L proxifai-screen-0 \
+                    display-message -p -t pfai-main '#{session_attached}' 2>/dev/null || echo 0)
+                case "$attached" in ''|*[!0-9]*) attached=0 ;; esac
+                if [ "$attached" -ge 2 ]; then
+                    break
+                fi
+                sleep 0.2
+            done
+        fi
+    fi
+    docker rm -f "$name" >/dev/null 2>&1 || true
+
+    if [ "$ready" -eq 1 ] && [ "$attached" -ge 2 ]; then
+        ok "desktop startup and dock launcher share pfai-main tmux"
+    else
+        fail "${image}: visible terminals did not attach to shared pfai-main tmux"
+    fi
+}
+
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║   ProxifAI Agent Images - Test Suite v2.0   ║${NC}"
@@ -306,22 +352,33 @@ fi
 header "━━━ Layer 2: dev-desktop ━━━"
 if assert_image_exists "dev-desktop"; then
     assert_label "dev-desktop" "ai.proxifai.image.layer" "2"
+	assert_label "dev-desktop" "ai.proxifai.image.version" "3.0.0"
 
-    log "Checking base inheritance..."
-    assert_cmd "dev-desktop" "nvim" "neovim (from base)"
-    assert_cmd "dev-desktop" "rg" "ripgrep (from base)"
-    assert_cmd "dev-desktop" "tmux" "tmux (from base)"
+	log "Checking standalone desktop tools..."
+	assert_cmd "dev-desktop" "rg" "ripgrep"
+	assert_cmd "dev-desktop" "tmux" "tmux"
+	assert_cmd "dev-desktop" "flock" "flock"
+	assert_cmd "dev-desktop" "sudo" "sudo"
 
     log "Checking X11 and VNC..."
     assert_cmd "dev-desktop" "Xvfb" "Xvfb"
     assert_cmd "dev-desktop" "x11vnc" "x11vnc"
-    assert_cmd "dev-desktop" "openbox" "openbox"
+	assert_cmd "dev-desktop" "xfwm4" "xfwm4"
+	assert_cmd "dev-desktop" "picom" "picom"
     assert_cmd "dev-desktop" "xterm" "xterm"
+	assert_cmd "dev-desktop" "google-chrome" "Google Chrome"
 
     log "Checking Node.js..."
     assert_cmd "dev-desktop" "node" "node"
+	assert_cmd_output "dev-desktop" "node -p 'Number(process.versions.node.split(\".\")[0]) >= 22'" "^true$" "Node.js 22+"
     assert_cmd "dev-desktop" "npm" "npm"
     assert_cmd "dev-desktop" "pnpm" "pnpm"
+    assert_cmd "dev-desktop" "opencode" "OpenCode CLI"
+	assert_cmd "dev-desktop" "claude" "Claude Code CLI"
+	assert_cmd "dev-desktop" "agent-terminal" "shared terminal launcher"
+	assert_cmd_output "dev-desktop" "grep -F 'tmux -L \"\$socket\" new-session -A -s pfai-main' /usr/local/bin/agent-terminal" "tmux -L" "desktop xterm shares pfai-main tmux"
+	assert_cmd_output "dev-desktop" "grep -F 'proxifai-terminal.desktop' /usr/local/share/proxifai/xfce4-panel.xml" "proxifai-terminal" "dock opens shared terminal"
+	assert_shared_terminal "dev-desktop"
 
     log "Checking Python..."
     assert_cmd "dev-desktop" "python3" "python3"
@@ -329,6 +386,9 @@ if assert_image_exists "dev-desktop"; then
     log "Checking ports..."
     assert_port "dev-desktop" "22"
     assert_port "dev-desktop" "5900"
+	assert_port "dev-desktop" "5907"
+	assert_port "dev-desktop" "9222"
+	assert_port "dev-desktop" "9229"
 fi
 
 header "━━━ Layer 2: dev-ubuntu-desktop ━━━"
@@ -493,6 +553,7 @@ if assert_image_exists "opencode"; then
     assert_cmd "opencode" "nvim" "neovim (from base)"
 
     log "Checking OpenCode tools..."
+    assert_cmd "opencode" "opencode" "OpenCode CLI"
     assert_cmd "opencode" "ttyd" "ttyd"
     assert_port "opencode" "3000"
 fi

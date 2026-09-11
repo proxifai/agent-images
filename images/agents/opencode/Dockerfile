@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.description="OpenCode agent on Go development env
 LABEL org.opencontainers.image.vendor="ProxifAI"
 LABEL org.opencontainers.image.source="https://github.com/proxifai/agent-images"
 LABEL ai.proxifai.image.type="opencode"
-LABEL ai.proxifai.image.version="2.0.0"
+LABEL ai.proxifai.image.version="3.0.0"
 LABEL ai.proxifai.image.layer="3"
 LABEL ai.proxifai.base-tool="opencode"
 
@@ -17,8 +17,12 @@ LABEL ai.proxifai.base-tool="opencode"
 RUN apk add --no-cache ttyd nodejs npm \
     && rm -rf /var/cache/apk/* /tmp/*
 
-# Install OpenCode AI coding agent (requires Go >= 1.24, auto-download toolchain)
-RUN GOTOOLCHAIN=auto go install github.com/opencode-ai/opencode@latest \
+# Install the current OpenCode CLI. The previous github.com/opencode-ai/opencode
+# Go module is a different, retired implementation and does not understand the
+# current ~/.config/opencode/opencode.json provider contract.
+ARG OPENCODE_VERSION=1.18.26
+RUN npm install -g --no-fund --no-audit "opencode-ai@${OPENCODE_VERSION}" \
+    && npm cache clean --force \
     && rm -rf /root/go/pkg /tmp/*
 
 # Ship review-mode entrypoint alongside the default implement-mode one.

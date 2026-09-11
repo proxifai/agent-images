@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Agent Console
+GenericName=Terminal
+Comment=Open the same console the agent can read and control
+Exec=/usr/local/bin/agent-terminal
+StartupNotify=true
+Terminal=false
+Icon=utilities-terminal
+Type=Application
+Categories=System;TerminalEmulator;

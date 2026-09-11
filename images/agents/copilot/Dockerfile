@@ -20,3 +20,8 @@ RUN apk add --no-cache github-cli \
 WORKDIR /workspace
 EXPOSE 22
 # Inherits generic entrypoint from base image (copilot is interactive-only, entrypoint handles gracefully)
+
+# Restore the agent entrypoint as CMD: the dev-node layer overrides the
+# base image's CMD with sshd, so without this the container starts a bare
+# sshd and the agent never runs (the execution then hangs at "running").
+CMD ["/usr/local/bin/entrypoint.sh"]

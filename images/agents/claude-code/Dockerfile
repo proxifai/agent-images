@@ -23,3 +23,8 @@ RUN mkdir -p /root/.claude /etc/claude-code
 WORKDIR /workspace
 EXPOSE 22
 # Inherits generic entrypoint from base image (selects claude-code via PROXIFAI_AGENT_TOOL)
+
+# Restore the agent entrypoint as CMD: the dev-node layer overrides the
+# base image's CMD with sshd, so without this the container starts a bare
+# sshd and the agent never runs (the execution then hangs at "running").
+CMD ["/usr/local/bin/entrypoint.sh"]

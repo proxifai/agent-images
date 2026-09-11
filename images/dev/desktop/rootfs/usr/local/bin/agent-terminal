@@ -1,0 +1,18 @@
+#!/bin/bash
+# Open a visible client for the same per-screen tmux session used by the
+# terminal_session agent tool. Running this repeatedly attaches another view;
+# it never creates an unrelated shell.
+set -eu
+
+index="${SCREEN_INDEX:-0}"
+case "$index" in
+  ''|*[!0-9]*) echo "agent-terminal: invalid SCREEN_INDEX '$index'" >&2; exit 2 ;;
+esac
+
+: "${HOME:=/home/user}"
+socket="proxifai-screen-${index}"
+
+exec xterm -geometry 100x28+40+40 -fa 'DejaVu Sans Mono' -fs 11 \
+  -T "screen ${index}" \
+  -e env XDG_CONFIG_HOME="$HOME/.config" TERM=xterm-256color \
+  tmux -L "$socket" new-session -A -s pfai-main -c /workspace
