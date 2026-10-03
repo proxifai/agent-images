@@ -348,10 +348,12 @@ ci_psql() {
 # a parent node_modules once supplied @types/node to a package that never
 # declared it, and CI's isolated job failed where the hook passed.
 ci_checkout() { # name
-  local dir="$CACHE_DIR/checkouts/$1"
+  # Outside the repo's .git: Vite refuses to serve files under any .git
+  # directory (server.fs.deny), so a checkout there fails every web test.
+  local base="${TMPDIR:-/tmp}"
+  local dir="${base%/}/ci-parity-$(basename "$REPO_ROOT")-$1"
   git -C "$REPO_ROOT" worktree remove --force "$dir" >/dev/null 2>&1
   rm -rf "$dir"
-  mkdir -p "$CACHE_DIR/checkouts"
   git -C "$REPO_ROOT" worktree prune >/dev/null 2>&1
   if ! git -C "$REPO_ROOT" worktree add --detach --quiet "$dir" HEAD >/dev/null 2>&1; then
     fail "could not create a clean checkout for $1"
