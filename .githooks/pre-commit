@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# Fast, staged-scoped gate. Budget: a few seconds.
+#
+# The SCOPED half of CI parity: it checks only what you staged. The image
+# builds and the image test suite (minutes) run in .githooks/pre-push.
+#
+# `git config hooks.fullOnCommit true` (or HOOKS_FULL=1) runs the full pre-push
+# mirror here instead. Bypass with `git commit --no-verify`.
+
+# shellcheck source=lib/common.sh
+. "$(dirname "$0")/lib/common.sh"
+cd "$REPO_ROOT" || exit 1
+
+if [ "${HOOKS_FULL:-}" = 1 ] || [ "$(git config --bool hooks.fullOnCommit 2>/dev/null)" = true ]; then
+  printf '%spre-commit%s %s(hooks.fullOnCommit / HOOKS_FULL — running the full pre-push mirror)%s\n' \
+    "$C_BLD" "$C_RST" "$C_DIM" "$C_RST"
+  exec "$(dirname "$0")/pre-push" < /dev/null
+fi
+
+printf '%spre-commit%s %s(scoped checks — the image builds run on push)%s\n' \
+  "$C_BLD" "$C_RST" "$C_DIM" "$C_RST"
+
+# ── 1. merge-conflict markers ───────────────────────────────────────────────
+step 'conflict markers'
+conflicts=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  # Never `producer | grep -q` here: grep exits at the first match, the
+  # producer dies of SIGPIPE on a file bigger than the pipe buffer, and under
+  # pipefail the match reads as "no match". Hence >/dev/null and <<<.
+  if git show ":$f" 2>/dev/null | grep -E '^(<<<<<<< |>>>>>>> |=======$)' >/dev/null; then
+    conflicts="$conflicts$f"$'\n'
+  fi
+done < <(staged_files)
+if [ -n "$conflicts" ]; then
+  fail "unresolved conflict markers:"
+  printf '%s' "$conflicts" | sed 's/^/      /'
+else
+  ok 'none'
+fi
+
+# ── 2. secrets  [EXTRA — not a CI check] ────────────────────────────────────
+# CI does not scan for secrets. Same scanner as the proxifai repo: raw patterns,
+# plus base64 values inside a staged k8s Secret.
+step 'secrets  [EXTRA]'
+secret_re='sk-or-v1-[A-Za-z0-9_-]{16}|sk-ant-[A-Za-z0-9_-]{16}|ghp_[A-Za-z0-9]{30}|github_pat_[A-Za-z0-9_]{30}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+found=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  # The pfai binaries are megabytes of ELF; no credential lives in them.
+  case "$f" in images/base/pfai|images/base/pfai-*) continue ;; esac
+  content="$(git show ":$f" 2>/dev/null)" || continue
+  if grep -qE "$secret_re" <<< "$content"; then
+    found="$found$f (plaintext)"$'\n'
+    continue
+  fi
+  # `read ... || [ -n "$x" ]`: $(...) strips the trailing newline, and a plain
+  # read would drop the last (for a one-entry Secret, the only) line.
+  if grep -q 'kind:[[:space:]]*Secret' <<< "$content"; then
+    while IFS= read -r b64 || [ -n "$b64" ]; do
+      [ ${#b64} -ge 16 ] || continue
+      dec="$(printf '%s' "$b64" | base64 -d 2>/dev/null)" || continue
+      if grep -qE "$secret_re" <<< "$dec"; then
+        found="$found$f (base64-encoded in a Secret)"$'\n'
+        break
+      fi
+    done < <(printf '%s\n' "$content" | sed -n 's|^[[:space:]]*[A-Za-z0-9_.-]*:[[:space:]]*\([A-Za-z0-9+/=]\{16,\}\)[[:space:]]*$|\1|p')
+  fi
+done < <(staged_files)
+if [ -n "$found" ]; then
+  fail 'credential-shaped content staged:'
+  printf '%s' "$found" | sed 's/^/      /'
+  info 'if this is a false positive: git commit --no-verify'
+else
+  ok 'none detected'
+fi
+
+# ── 3. workflow files ───────────────────────────────────────────────────────
+# GitHub rejects a workflow it can't parse and fails it on every push.
+wf_files=()
+read_lines_into wf_files < <(staged_files '.github/workflows/*.yml' '.github/workflows/*.yaml')
+if [ ${#wf_files[@]} -gt 0 ]; then
+  step "workflow lint (${#wf_files[@]} staged)"
+  lint_workflows "${wf_files[@]}"
+fi
+if [ ${#wf_files[@]} -gt 0 ] || [ -n "$(staged_files .githooks/ci-contract.sha256)" ]; then
+  step 'CI contract'
+  check_ci_contract
+fi
+
+# ── 4. Dockerfile lint  [EXTRA — CI does not run it] ────────────────────────
+# BuildKit's own checks (`docker build --check`): no build, ~1s per file. A
+# Dockerfile that does not PARSE fails CI's build, so that blocks; a lint rule
+# (JSONArgsRecommended, …) is only a warning in CI's build, so it only warns.
+#
+# The check resolves FROM, so FROM ${BASE_REGISTRY}/<parent> needs a parent:
+# the one pre-push last built (ci-parity/agent-images/<parent>, native arch).
+# Before the first pre-push there is none, and the file is linted against an
+# empty stand-in: parse errors are still exact, but a warning about a variable
+# the parent defines can be spurious. (ghcr's images can't stand in: they are
+# amd64-only, and `--check` ignores --platform when resolving FROM.)
+dockerfiles=()
+read_lines_into dockerfiles < <(staged_files 'images/*Dockerfile')
+if [ ${#dockerfiles[@]} -gt 0 ]; then
+  step "docker build --check (${#dockerfiles[@]} staged Dockerfile(s))  [EXTRA]"
+  if [ -n "${SKIP_DOCKER:-}" ]; then
+    warn 'SKIP_DOCKER set — skipped (CI still builds them on push)'
+  elif ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+    warn 'Docker is not running — skipped (pre-push builds them)'
+  elif ! docker build --help 2>/dev/null | grep -- '--check' >/dev/null; then
+    warn 'this docker has no `build --check` — skipped'
+  else
+    tmpdf="$(mktemp -d)"
+    on_exit "rm -rf '$tmpdf'"
+    for df in "${dockerfiles[@]}"; do
+      # Lint the STAGED Dockerfile, not the working-tree one.
+      git show ":$df" > "$tmpdf/Dockerfile" 2>/dev/null
+      note=""
+      parent="$(sed -n -E 's|^FROM[[:space:]]+\$\{BASE_REGISTRY\}/([A-Za-z0-9._-]+):latest.*|\1|p' "$tmpdf/Dockerfile" | head -1)"
+      if [ -n "$parent" ] && ! docker image inspect "ci-parity/agent-images/$parent:latest" >/dev/null 2>&1; then
+        sed -E 's|^FROM[[:space:]]+\$\{BASE_REGISTRY\}/[A-Za-z0-9._-]+:latest|FROM scratch|' \
+          "$tmpdf/Dockerfile" > "$tmpdf/Dockerfile.stub" && mv "$tmpdf/Dockerfile.stub" "$tmpdf/Dockerfile"
+        note=" (no local $parent yet — linted against an empty parent)"
+      fi
+      out="$(docker build --check --build-arg BASE_REGISTRY=ci-parity/agent-images \
+               -f "$tmpdf/Dockerfile" "$(dirname "$df")" 2>&1)"; rc=$?
+      if [ $rc -eq 0 ]; then
+        ok "$df$note"
+      elif grep -q 'dockerfile parse error' <<< "$out"; then
+        fail "$df does not parse — CI's build fails on it"
+        printf '%s\n' "$out" | grep -E 'ERROR|>>>' | head -6 | sed 's/^/      /'
+      elif grep -qE '^WARNING: |warnings? (have|has) been found' <<< "$out"; then
+        warn "$df: lint warnings (CI's build only warns on these)$note:"
+        printf '%s\n' "$out" | grep -E '^WARNING: ' | head -10 | sed 's/^/      /'
+      else
+        warn "$df: could not run the check$note:"
+        printf '%s\n' "$out" | grep -E 'ERROR' | head -3 | sed 's/^/      /'
+      fi
+    done
+  fi
+fi
+
+printf '\n'
+if [ "$FAILED" -ne 0 ]; then
+  printf '%spre-commit failed.%s Fix the above, or bypass with %s--no-verify%s.\n' \
+    "$C_RED" "$C_RST" "$C_BLD" "$C_RST"
+  exit 1
+fi
+printf '%spre-commit passed.%s\n' "$C_GRN" "$C_RST"

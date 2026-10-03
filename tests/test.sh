@@ -6,6 +6,15 @@ set -euo pipefail
 
 REGISTRY="${REGISTRY:-proxifai}"
 TAG="${TAG:-latest}"
+# IMAGES: optional space-separated subset to test (default: every image). An
+# image outside it is reported as skipped rather than failed. The git pre-push
+# hook sets it to the images a push rebuilt; CI leaves it unset.
+IMAGES="${IMAGES:-}"
+wanted() {
+    [ -z "$IMAGES" ] && return 0
+    case " $IMAGES " in *" $1 "*) return 0 ;; esac
+    return 1
+}
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -61,6 +70,10 @@ assert_cmd_output() {
 # Check if image exists
 assert_image_exists() {
     local image="$1"
+    if ! wanted "$image"; then
+        skip "${image} not in IMAGES — not tested"
+        return 1
+    fi
     if docker image inspect "${REGISTRY}/${image}:${TAG}" >/dev/null 2>&1; then
         ok "Image ${image} exists"
         return 0
@@ -564,14 +577,14 @@ fi
 
 header "━━━ Cross-cutting: SSH works in all images ━━━"
 for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop dev-gnome-desktop claude-code gemini-cli copilot aider cursor opencode; do
-    if docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
+    if wanted "$img" && docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
         assert_cmd "$img" "sshd" "sshd in ${img}"
     fi
 done
 
 header "━━━ Cross-cutting: /workspace exists in all images ━━━"
 for img in base dev-node dev-python dev-go dev-rust dev-fullstack dev-desktop dev-ubuntu-desktop dev-gnome-desktop claude-code gemini-cli copilot aider cursor opencode; do
-    if docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
+    if wanted "$img" && docker image inspect "${REGISTRY}/${img}:${TAG}" >/dev/null 2>&1; then
         assert_workdir "$img" "/workspace"
     fi
 done

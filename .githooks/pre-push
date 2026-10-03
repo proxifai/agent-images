@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+# Mirror of .github/workflows/build-images.yml and build-desktop-multiarch.yml.
+# Budget: minutes, once per push — and only for the images the push changes.
+#
+# Every step names the workflow job it mirrors. The images are built with the
+# same Dockerfile, context and build-args as CI, in CI's order: base first,
+# then the dev images (FROM base), then the agent images (FROM a dev image).
+# Each child is built on the parent THIS run built, never on whatever
+# `:latest` happens to be in a registry, so a base change is tested together
+# with every image that inherits it.
+#
+# Which images build is decided by the paths the push changes, like CI's
+# `paths:` filter, but per image: an image builds when its context changed or
+# when its parent rebuilt; an untouched parent it needs is rebuilt too (a
+# docker cache hit when nothing changed). `.githooks/install.sh ci-local` runs
+# with no push information and therefore builds and tests everything.
+#
+# Bypass with `git push --no-verify`. SKIP_DOCKER=1 skips the builds and the
+# image tests (each skipped job is named).
+
+# shellcheck source=lib/common.sh
+. "$(dirname "$0")/lib/common.sh"
+cd "$REPO_ROOT" || exit 1
+read_push_refs
+
+START=$(now)
+printf '%spre-push%s %s(mirroring build-images.yml + build-desktop-multiarch.yml)%s\n' \
+  "$C_BLD" "$C_RST" "$C_DIM" "$C_RST"
+
+BUILD_WF="$WORKFLOW_DIR/build-images.yml"
+LOCAL_REG="ci-parity/agent-images"   # stands in for CI's ghcr.io/<repo> prefix
+
+# ── the image graph, read from the workflow and the Dockerfiles ────────────
+# One "job name path" line per image, in the workflow's order: build-base's
+# context, then each matrix `- name:` / `path:` pair. Parsed, not copied, so a
+# new matrix entry is built here without anyone touching this hook.
+image_table() {
+  awk '
+    /^jobs:/ { injobs = 1; next }
+    !injobs { next }
+    /^  [A-Za-z0-9_-]+:[[:space:]]*$/ { job = $1; sub(/:$/, "", job); name = ""; next }
+    /^[[:space:]]*- name:[[:space:]]*[A-Za-z0-9._-]+[[:space:]]*$/ {
+      name = $0; sub(/.*- name:[[:space:]]*/, "", name); sub(/[[:space:]]*$/, "", name); next
+    }
+    /^[[:space:]]*path:[[:space:]]*images\// {
+      p = $0; sub(/.*path:[[:space:]]*/, "", p); sub(/[[:space:]]*$/, "", p)
+      if (name != "") print job, name, p
+      name = ""; next
+    }
+    /^[[:space:]]*context:[[:space:]]*images\// {
+      p = $0; sub(/.*context:[[:space:]]*/, "", p); sub(/[[:space:]]*$/, "", p)
+      n = p; sub(/.*\//, "", n); print job, n, p; next
+    }
+  ' "$BUILD_WF"
+}
+
+# The image a Dockerfile builds on: `FROM ${BASE_REGISTRY}/<parent>:latest`
+# (dev-desktop only COPYs pfai from base, but it is a build dependency all the
+# same). Empty for images on a public base (alpine, ubuntu).
+parent_of() { # dockerfile
+  sed -n -E 's|^FROM[[:space:]]+\$\{BASE_REGISTRY\}/([A-Za-z0-9._-]+):latest.*|\1|p' "$1" | head -1
+}
+
+JOBS=(); NAMES=(); PATHS=(); PARENTS=()
+while read -r job name path; do
+  [ -n "$path" ] || continue
+  JOBS+=("$job"); NAMES+=("$name"); PATHS+=("$path")
+  PARENTS+=("$(parent_of "$path/Dockerfile")")
+done < <(image_table)
+
+index_of() { # name -> index, or nothing
+  local i
+  for i in "${!NAMES[@]}"; do [ "${NAMES[$i]}" = "$1" ] && { echo "$i"; return; }; done
+}
+
+step 'image graph (build-images.yml)'
+if [ ${#NAMES[@]} -eq 0 ]; then
+  fail "could not read any image from ${BUILD_WF#"$REPO_ROOT"/}"
+else
+  ok "${#NAMES[@]} images: ${NAMES[*]}"
+fi
+
+# ── which images this push builds ──────────────────────────────────────────
+# WHY[i]: "changed" (its context is in the push), "parent rebuilt", or
+# "needed by <child>" (untouched, rebuilt so the child builds on this tree).
+WHY=()
+for i in "${!NAMES[@]}"; do
+  WHY[$i]=""
+  if [ -z "$PUSH_REFS" ]; then WHY[$i]="full run"
+  elif push_touches "^${PATHS[$i]}/"; then WHY[$i]="changed"
+  fi
+done
+# Parents precede children in the workflow's order, so one forward pass
+# carries a rebuild down the whole chain (base -> dev-node -> claude-code).
+for i in "${!NAMES[@]}"; do
+  p="${PARENTS[$i]}"; [ -n "$p" ] || continue
+  pi="$(index_of "$p")"
+  if [ -n "$pi" ] && [ -n "${WHY[$pi]}" ] && [ -z "${WHY[$i]}" ]; then WHY[$i]="parent $p rebuilt"; fi
+done
+# And one backward pass pulls in every untouched ancestor a build needs.
+i=$(( ${#NAMES[@]} - 1 ))
+while [ $i -ge 0 ]; do
+  p="${PARENTS[$i]}"
+  if [ -n "${WHY[$i]}" ] && [ -n "$p" ]; then
+    pi="$(index_of "$p")"
+    if [ -z "$pi" ]; then
+      fail "${NAMES[$i]} builds FROM $p, which no job in build-images.yml builds"
+    elif [ -z "${WHY[$pi]}" ]; then
+      WHY[$pi]="needed by ${NAMES[$i]}"
+    fi
+  fi
+  i=$((i - 1))
+done
+
+if [ -n "$PUSH_REFS" ] && push_touches '^manifest\.json$'; then
+  info 'manifest.json changed: CI on main rebuilds every image for that alone, from'
+  info 'unchanged Dockerfiles — only upstream drift can fail it; ci-local rebuilds all'
+fi
+
+# ── build-images.yml: build-base / build-dev-images / build-agent-images ───
+BUILT=""; BROKEN=""
+build_image() { # index [label suffix]
+  local i="$1" name="${NAMES[$1]}" path="${PATHS[$1]}" p="${PARENTS[$1]}" args
+  if [ -n "$p" ]; then
+    case " $BROKEN " in *" $p "*)
+      warn "$name not built: its parent $p failed (CI's needs: stops here too)"
+      BROKEN="$BROKEN $name"; return 1 ;;
+    esac
+  fi
+  args=(-t "$LOCAL_REG/$name:latest")
+  # build-base passes no build-args; the dev and agent jobs pass
+  # BASE_REGISTRY=<registry prefix>, which here is the local namespace the
+  # parent was just tagged into.
+  [ "${JOBS[$i]}" = "build-base" ] || args+=(--build-arg "BASE_REGISTRY=$LOCAL_REG")
+  if docker_build_check "$name — ${WHY[$i]}" "$path/Dockerfile" "$path" "${args[@]}"; then
+    BUILT="$BUILT $name"
+  else
+    BROKEN="$BROKEN $name"
+  fi
+}
+
+any_build=""
+for i in "${!NAMES[@]}"; do [ -n "${WHY[$i]}" ] && any_build=1; done
+last_job=""
+for i in "${!NAMES[@]}"; do
+  [ -n "${WHY[$i]}" ] || continue
+  if [ "${JOBS[$i]}" != "$last_job" ]; then
+    step "${JOBS[$i]} (build-images.yml)"
+    last_job="${JOBS[$i]}"
+  fi
+  [ -n "${SKIP_DOCKER:-}" ] && { warn "SKIP_DOCKER set — skipped ${NAMES[$i]} (CI will still build it)"; continue; }
+  build_image "$i"
+done
+if [ -z "$any_build" ]; then
+  step 'build-base / build-dev-images / build-agent-images (build-images.yml)'
+  ok 'no image context in this push — CI'"'"'s per-image result is unchanged'
+fi
+
+# ── build-desktop-multiarch.yml: build ─────────────────────────────────────
+# Same two Dockerfiles, built for linux/amd64 AND linux/arm64 in CI. The local
+# build is the native platform, i.e. exactly one of those two legs.
+if push_touches '^images/base/' '^images/dev/desktop/' '^\.github/workflows/build-desktop-multiarch\.yml$'; then
+  step 'build (build-desktop-multiarch.yml: base + dev-desktop)'
+
+  # The "Resolve image names and tags" step fails the job when either
+  # Dockerfile's version LABEL is missing or not a version. Same sed, same regex.
+  version_of() {
+    sed -n 's/^LABEL[[:space:]][[:space:]]*ai\.proxifai\.image\.version="\([^"]*\)".*/\1/p' "$1" | head -n 1
+  }
+  re='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
+  for pair in "base:$(version_of images/base/Dockerfile)" "dev-desktop:$(version_of images/dev/desktop/Dockerfile)"; do
+    if [[ "${pair#*:}" =~ $re ]]; then
+      ok "${pair%%:*} version label ${pair#*:}"
+    else
+      fail "${pair%%:*}: LABEL ai.proxifai.image.version is missing or not a version: '${pair#*:}'"
+    fi
+  done
+
+  native="linux/$(docker version --format '{{.Server.Arch}}' 2>/dev/null || uname -m)"
+  for name in base dev-desktop; do
+    case " $BUILT " in
+      *" $name "*) ok "$name: the build above is this job's $native leg (same Dockerfile and context)" ;;
+      *)
+        case " $BROKEN " in *" $name "*) fail "$name failed above — this job fails with it"; continue ;; esac
+        i="$(index_of "$name")"
+        if [ -z "$i" ]; then
+          fail "$name is not in build-images.yml any more — the multiarch mirror needs updating"
+        elif [ -n "${SKIP_DOCKER:-}" ]; then
+          warn "SKIP_DOCKER set — skipped $name (CI will still build it)"
+        else
+          [ -n "${WHY[$i]}" ] || WHY[$i]="build-desktop-multiarch.yml changed"
+          build_image "$i"
+        fi ;;
+    esac
+  done
+  case "$native" in
+    */arm64) warn 'linux/amd64 leg not built here (needs emulation): PLATFORM=linux/amd64 scripts/build.sh' ;;
+    *)       warn 'linux/arm64 leg not built here (needs emulation): PLATFORM=linux/arm64 scripts/build.sh' ;;
+  esac
+fi
+
+# ── build-images.yml: test ─────────────────────────────────────────────────
+# CI pulls every image and runs tests/test.sh. Here it runs against the images
+# this push rebuilt (IMAGES scopes it; the rest report as skipped). On a pull
+# request CI pulls the registry's :latest, i.e. it tests main, not the PR —
+# this step tests what the push actually builds.
+if [ -n "$BUILT" ]; then
+  step 'test (build-images.yml: Run test suite)'
+  # The desktop test boots a container; make sure an interrupted run removes it.
+  __rm_test_containers() {
+    local ids
+    ids="$(docker ps -aq --filter name=pfai-image-terminal-test- 2>/dev/null)"
+    [ -z "$ids" ] || docker rm -f $ids >/dev/null 2>&1
+  }
+  on_exit __rm_test_containers
+  set -- $BUILT
+  run_quiet "tests/test.sh on $# rebuilt image(s)" \
+    env REGISTRY="$LOCAL_REG" TAG=latest IMAGES="$BUILT" bash tests/test.sh
+elif [ -n "$any_build" ] && [ -n "${SKIP_DOCKER:-}" ]; then
+  step 'test (build-images.yml: Run test suite)'
+  warn 'SKIP_DOCKER set — skipped (CI will still run it)'
+fi
+if [ -n "$PUSH_REFS" ] && push_touches '^tests/'; then
+  info 'tests/ is not in CI'"'"'s paths filter: the new test.sh first runs on the next'
+  info 'images/** push — .githooks/install.sh ci-local runs it against every image now'
+fi
+
+# ── the pipeline definitions themselves ────────────────────────────────────
+step 'workflow files'
+lint_workflows
+check_ci_contract
+check_up_to_date_with_main
+
+# ── verdict ─────────────────────────────────────────────────────────────────
+printf '\n'
+ELAPSED=$(( $(now) - START ))
+if [ "$FAILED" -ne 0 ]; then
+  printf '%spre-push failed after %ss.%s CI would fail too — fix before pushing.\n' \
+    "$C_RED" "$ELAPSED" "$C_RST"
+  printf 'Bypass with %sgit push --no-verify%s if you know what you are doing.\n' "$C_BLD" "$C_RST"
+  exit 1
+fi
+printf '%spre-push passed in %ss.%s\n' "$C_GRN" "$ELAPSED" "$C_RST"
