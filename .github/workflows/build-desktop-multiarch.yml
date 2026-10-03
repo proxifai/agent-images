@@ -1,0 +1,301 @@
+# Multi-arch (linux/amd64 + linux/arm64) build of the bot desktop and the base
+# it copies `pfai` from.
+#
+# WHY A SEPARATE WORKFLOW
+#
+# build-images.yml builds everything for linux/amd64 only and tags only
+# `:latest`. The platform now pins the bot desktop explicitly
+# (BOT_DESKTOP_IMAGE, default ghcr.io/proxifai/agent-images/dev-desktop:3.0.0)
+# and wants a digest it can pin, and the desktop has to run on arm64 nodes and
+# Apple Silicon as well. This workflow produces exactly that pair of images:
+#
+#   base         (Alpine; ships per-arch pfai-amd64 / pfai-arm64 via TARGETARCH)
+#   dev-desktop  (Debian; `COPY --from=${BASE_REGISTRY}/base:latest` for pfai)
+#
+# ORDER AND THE BASE THE DESKTOP USES
+#
+# The desktop Dockerfile takes pfai from `${BASE_REGISTRY}/base:latest`, so the
+# base must be multi-arch and built first, and the desktop must use THAT base —
+# not whatever `:latest` happens to be in the registry (today amd64-only, from
+# build-images.yml, which would fail the arm64 build or, worse, mix builds).
+# Both images are built in one job, base first, and the desktop build overrides
+# its FROM with a buildx named context keyed on the base's name:
+#   * when pushing: the base's pushed index digest (docker-image://…@sha256:…);
+#   * on pull requests (nothing is pushed): the base's OCI layout exported to
+#     the runner, again by digest (oci-layout://…@sha256:…).
+# BuildKit matches a named context against the FROM reference after ARG
+# expansion with a trailing `:latest` dropped, hence the key
+# `ghcr.io/<repo>/base` for `FROM ghcr.io/<repo>/base:latest`.
+#
+# TAGS
+#
+#   <version>   from the Dockerfile's LABEL ai.proxifai.image.version
+#               (dev-desktop 3.0.0, base 2.0.0). Re-pushed by every build until
+#               that label is bumped, so it is not immutable — pin by digest.
+#   sha-<7>     the commit.
+#   latest      only for refs/heads/main.
+# Pushes happen on main, on v* / dev-desktop-v* tags and on workflow_dispatch —
+# never on pull_request, where both platforms are built and nothing is pushed.
+# The job summary carries the pushed digests and a ready-to-paste
+# BOT_DESKTOP_IMAGE=…@sha256:… line.
+#
+# KNOWN OVERLAP: build-images.yml still pushes base:latest and
+# dev-desktop:latest (amd64-only) for the same path changes on main, so for a
+# given commit `:latest` is whichever workflow finished last. The version,
+# sha- and digest references from this workflow are unaffected. Dropping base
+# and dev-desktop from build-images.yml (or making it multi-arch) removes the
+# race.
+
+name: Build multi-arch desktop (base + dev-desktop)
+
+on:
+  push:
+    branches: [main]
+    # Path filters are not evaluated for tag pushes, so tags always build.
+    paths:
+      - 'images/base/**'
+      - 'images/dev/desktop/**'
+      - '.github/workflows/build-desktop-multiarch.yml'
+    tags:
+      - 'v*'
+      - 'dev-desktop-v*'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'images/base/**'
+      - 'images/dev/desktop/**'
+      - '.github/workflows/build-desktop-multiarch.yml'
+  workflow_dispatch:
+
+# A newer commit on the same PR supersedes the running build; pushes to main
+# and tags queue instead, so every pushed commit gets its images.
+concurrency:
+  group: build-desktop-multiarch-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY: ghcr.io
+  PLATFORMS: linux/amd64,linux/arm64
+  # The one switch for "does this run publish anything".
+  PUSH: ${{ github.event_name != 'pull_request' }}
+
+jobs:
+  build:
+    name: base + dev-desktop (amd64, arm64)
+    runs-on: ubuntu-latest
+    # arm64 is emulated with QEMU; the desktop (apt, Chrome, Node, global npm
+    # installs) is slow under emulation.
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve image names and tags
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          # ghcr references must be lowercase; github.repository may not be.
+          prefix="${REGISTRY}/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          short="${GITHUB_SHA:0:7}"
+          version_of() {
+            sed -n 's/^LABEL[[:space:]][[:space:]]*ai\.proxifai\.image\.version="\([^"]*\)".*/\1/p' "$1" | head -n 1
+          }
+          base_version="$(version_of images/base/Dockerfile)"
+          desktop_version="$(version_of images/dev/desktop/Dockerfile)"
+          re='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
+          for pair in "base:${base_version}" "dev-desktop:${desktop_version}"; do
+            if ! [[ "${pair#*:}" =~ $re ]]; then
+              echo "::error::${pair%%:*}: LABEL ai.proxifai.image.version is missing or not a version: '${pair#*:}'"
+              exit 1
+            fi
+          done
+          tags_for() {
+            printf '%s/%s:%s\n' "$prefix" "$1" "$2"
+            printf '%s/%s:sha-%s\n' "$prefix" "$1" "$short"
+            if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+              printf '%s/%s:latest\n' "$prefix" "$1"
+            fi
+          }
+          {
+            echo "prefix=${prefix}"
+            echo "base_version=${base_version}"
+            echo "desktop_version=${desktop_version}"
+            echo "base_tags<<__TAGS__"
+            tags_for base "$base_version"
+            echo "__TAGS__"
+            echo "desktop_tags<<__TAGS__"
+            tags_for dev-desktop "$desktop_version"
+            echo "__TAGS__"
+          } >> "$GITHUB_OUTPUT"
+          echo "base ${base_version}, dev-desktop ${desktop_version}, push=${PUSH}"
+          tags_for base "$base_version"
+          tags_for dev-desktop "$desktop_version"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Layer 1: base ────────────────────────────────────────────────────
+      - name: Build and push base
+        id: base_push
+        if: env.PUSH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: images/base
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: ${{ steps.meta.outputs.base_tags }}
+          cache-from: type=gha,scope=multiarch-base
+          cache-to: type=gha,mode=max,scope=multiarch-base
+
+      # Pull requests push nothing, so the desktop cannot fetch this base from
+      # the registry. Export it as an OCI layout on the runner instead; the
+      # desktop build reads it from there.
+      - name: Build base (pull request, OCI layout only)
+        id: base_local
+        if: env.PUSH != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: images/base
+          platforms: ${{ env.PLATFORMS }}
+          outputs: type=oci,dest=${{ runner.temp }}/base-oci,tar=false
+          cache-from: type=gha,scope=multiarch-base
+          cache-to: type=gha,mode=max,scope=multiarch-base
+
+      - name: Pin the desktop's base to this run's build
+        id: base_ref
+        shell: bash
+        env:
+          PREFIX: ${{ steps.meta.outputs.prefix }}
+          PUSHED_DIGEST: ${{ steps.base_push.outputs.digest }}
+          LOCAL_DIGEST: ${{ steps.base_local.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUSH" == "true" ]]; then
+            [[ "$PUSHED_DIGEST" == sha256:* ]] || { echo "::error::base push produced no digest"; exit 1; }
+            source="docker-image://${PREFIX}/base@${PUSHED_DIGEST}"
+          else
+            # The OCI layout's index.json names the multi-platform index the
+            # exporter wrote; use it if the action reported no digest.
+            digest="${LOCAL_DIGEST:-$(jq -r '.manifests[0].digest // empty' "${RUNNER_TEMP}/base-oci/index.json")}"
+            [[ "$digest" == sha256:* ]] || { echo "::error::base OCI export produced no digest"; exit 1; }
+            source="oci-layout://${RUNNER_TEMP}/base-oci@${digest}"
+          fi
+          # Key = the desktop's FROM (${BASE_REGISTRY}/base:latest) without
+          # ":latest" — see the header.
+          echo "context=${PREFIX}/base=${source}" >> "$GITHUB_OUTPUT"
+          echo "desktop FROM ${PREFIX}/base:latest -> ${source}"
+
+      # ── Layer 2: dev-desktop ─────────────────────────────────────────────
+      - name: Build dev-desktop (pushed unless pull request)
+        id: desktop
+        uses: docker/build-push-action@v6
+        with:
+          context: images/dev/desktop
+          platforms: ${{ env.PLATFORMS }}
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ steps.meta.outputs.desktop_tags }}
+          build-args: |
+            BASE_REGISTRY=${{ steps.meta.outputs.prefix }}
+          build-contexts: |
+            ${{ steps.base_ref.outputs.context }}
+          cache-from: type=gha,scope=multiarch-dev-desktop
+          cache-to: type=gha,mode=max,scope=multiarch-dev-desktop
+
+      # Prove the pushed indexes really carry both platforms before anyone pins
+      # them, and hand the digests to whoever bumps the platform.
+      - name: Verify platforms and write the pin to the job summary
+        if: env.PUSH == 'true'
+        shell: bash
+        env:
+          PREFIX: ${{ steps.meta.outputs.prefix }}
+          BASE_VERSION: ${{ steps.meta.outputs.base_version }}
+          BASE_DIGEST: ${{ steps.base_push.outputs.digest }}
+          DESKTOP_VERSION: ${{ steps.meta.outputs.desktop_version }}
+          DESKTOP_DIGEST: ${{ steps.desktop.outputs.digest }}
+          BASE_TAGS: ${{ steps.meta.outputs.base_tags }}
+          DESKTOP_TAGS: ${{ steps.meta.outputs.desktop_tags }}
+        run: |
+          set -euo pipefail
+          [[ "$DESKTOP_DIGEST" == sha256:* ]] || { echo "::error::dev-desktop push produced no digest"; exit 1; }
+          platforms_of() {
+            docker buildx imagetools inspect --format '{{json .Manifest}}' "$1" \
+              | jq -r '[.manifests[] | select(.platform != null and .platform.os != "unknown") | .platform.os + "/" + .platform.architecture] | sort | join(",")'
+          }
+          base_platforms="$(platforms_of "${PREFIX}/base@${BASE_DIGEST}")"
+          desktop_platforms="$(platforms_of "${PREFIX}/dev-desktop@${DESKTOP_DIGEST}")"
+          for p in "$base_platforms" "$desktop_platforms"; do
+            if [[ "$p" != "linux/amd64,linux/arm64" ]]; then
+              echo "::error::expected linux/amd64,linux/arm64 in the pushed index, got '${p}'"
+              exit 1
+            fi
+          done
+          {
+            echo "## Pushed images"
+            echo
+            echo "| Image | Version | Digest | Platforms |"
+            echo "|---|---|---|---|"
+            echo "| \`${PREFIX}/base\` | ${BASE_VERSION} | \`${BASE_DIGEST}\` | ${base_platforms} |"
+            echo "| \`${PREFIX}/dev-desktop\` | ${DESKTOP_VERSION} | \`${DESKTOP_DIGEST}\` | ${desktop_platforms} |"
+            echo
+            echo "Tags pushed:"
+            echo
+            echo '```'
+            echo "$BASE_TAGS"
+            echo "$DESKTOP_TAGS"
+            echo '```'
+            echo
+            echo "### Pin the bot desktop"
+            echo
+            echo "Platform env (components/bot-machine-placement/env-patch.yaml in locations/infrastructure):"
+            echo
+            echo '```'
+            echo "BOT_DESKTOP_IMAGE=${PREFIX}/dev-desktop@${DESKTOP_DIGEST}"
+            echo '```'
+            echo
+            echo "Pre-pull DaemonSet (base/bot-machines \`images:\`, must match the line above):"
+            echo
+            echo '```yaml'
+            echo "images:"
+            echo "  - name: ${PREFIX}/dev-desktop"
+            echo "    digest: ${DESKTOP_DIGEST}"
+            echo '```'
+            echo
+            echo "The \`${DESKTOP_VERSION}\` tag is re-pushed by every build until the Dockerfile's version LABEL is bumped; the digest is what does not move."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Job summary (pull request build)
+        if: env.PUSH != 'true'
+        shell: bash
+        env:
+          BASE_VERSION: ${{ steps.meta.outputs.base_version }}
+          BASE_DIGEST: ${{ steps.base_local.outputs.digest }}
+          DESKTOP_VERSION: ${{ steps.meta.outputs.desktop_version }}
+          DESKTOP_DIGEST: ${{ steps.desktop.outputs.digest }}
+        run: |
+          {
+            echo "## Built for ${PLATFORMS} — not pushed (pull request)"
+            echo
+            echo "| Image | Version | Local digest |"
+            echo "|---|---|---|"
+            echo "| base | ${BASE_VERSION} | \`${BASE_DIGEST:-n/a}\` |"
+            echo "| dev-desktop | ${DESKTOP_VERSION} | \`${DESKTOP_DIGEST:-n/a}\` |"
+            echo
+            echo "Digests of an unpushed build are not pullable; merge to main (or run the workflow manually) to publish a pinnable digest."
+          } >> "$GITHUB_STEP_SUMMARY"
