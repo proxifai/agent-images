@@ -221,6 +221,41 @@ record_ci_contract() {
   printf 'recorded %s workflow file(s) in %s\n' "$(wc -l < "$CONTRACT_FILE" | tr -d ' ')" "${CONTRACT_FILE#"$REPO_ROOT"/}"
 }
 
+# Does this push update the default branch (where the deploy jobs run)?
+push_targets_default_branch() {
+  local main="refs/heads/$(default_remote_branch | sed 's|^origin/||')"
+  printf '%s\n' "$PUSH_REFS" | awk '{print $3}' | grep -qx "$main"
+}
+
+# Every `secrets.NAME` a workflow uses must exist, or the job fails at the
+# step that needs it (a missing LOCATIONS_BUMP_TOKEN once broke every
+# image→deploy dispatch). Only names are read, through `gh`; values never
+# leave GitHub. It can't tell a stale secret from a valid one.
+check_workflow_secrets() {
+  local repo want have missing="" s
+  want="$(grep -hvE '^[[:space:]]*#' "$WORKFLOW_DIR"/*.y*ml 2>/dev/null \
+    | grep -oE 'secrets\.[A-Za-z0-9_]+' | sed 's/^secrets\.//' | grep -vx GITHUB_TOKEN | sort -u)"
+  [ -n "$want" ] || { ok 'workflows use no repository secrets'; return 0; }
+  if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
+    warn 'gh not available — could not check that the secrets the workflows use exist'
+    return 0
+  fi
+  repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)"
+  have=" $( { gh secret list --repo "$repo" --json name --jq '.[].name'
+             gh secret list --org "${repo%%/*}" --json name --jq '.[].name'; } 2>/dev/null | tr '\n' ' ') "
+  for s in $want; do
+    case "$have" in *" $s "*) ;; *) missing="$missing $s" ;; esac
+  done
+  if [ -z "$missing" ]; then
+    ok "every secret the workflows use exists ($(printf '%s' "$want" | wc -w | tr -d ' '))"
+  elif push_targets_default_branch; then
+    fail "missing repository secrets the main-branch jobs need:$missing"
+    info "add them: gh secret set NAME --repo $repo"
+  else
+    warn "missing repository secrets (jobs on main will fail):$missing"
+  fi
+}
+
 # ── toolchains ──────────────────────────────────────────────────────────────
 # The first go-version a workflow pins, e.g. "1.25". Parsed rather than copied,
 # so it cannot drift from the workflow.
@@ -300,6 +335,30 @@ start_ci_postgres() {
 # ci_psql SQL: run SQL in the throwaway Postgres (no local psql needed).
 ci_psql() {
   docker exec -i "$CI_PG_CONTAINER" psql -v ON_ERROR_STOP=1 -tA -U "$__CI_PG_USER" -d "$__CI_PG_DB" -c "$1"
+}
+
+# ── clean checkouts ─────────────────────────────────────────────────────────
+# ci_checkout NAME: a fresh checkout of HEAD, like the one a workflow job
+# starts from — no node_modules, no build output, nothing untracked or
+# ignored. Sets CI_CHECKOUT_DIR and removes the checkout when the hook (or the
+# lane subshell) exits. Don't call it inside $(...): the cleanup would fire as
+# soon as that subshell ends.
+#
+# Running a job in the working copy instead lets local state answer for CI:
+# a parent node_modules once supplied @types/node to a package that never
+# declared it, and CI's isolated job failed where the hook passed.
+ci_checkout() { # name
+  local dir="$CACHE_DIR/checkouts/$1"
+  git -C "$REPO_ROOT" worktree remove --force "$dir" >/dev/null 2>&1
+  rm -rf "$dir"
+  mkdir -p "$CACHE_DIR/checkouts"
+  git -C "$REPO_ROOT" worktree prune >/dev/null 2>&1
+  if ! git -C "$REPO_ROOT" worktree add --detach --quiet "$dir" HEAD >/dev/null 2>&1; then
+    fail "could not create a clean checkout for $1"
+    return 1
+  fi
+  on_exit "git -C '$REPO_ROOT' worktree remove --force '$dir' >/dev/null 2>&1"
+  CI_CHECKOUT_DIR="$dir"
 }
 
 # ── docker builds ───────────────────────────────────────────────────────────
